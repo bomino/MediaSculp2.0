@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# Flask
+instance/
+.webassets-cache
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project specific
+downloads/*
+!downloads/.gitkeep
+trimmed_videos/*
+!trimmed_videos/.gitkeep
+*.db
+*.sqlite
+*.log
+
+# Media files (keep folder structure but not the files)
+*.mp4
+*.mp3
+*.wav
+*.ogg
+*.avi
+*.mov
+*.mkv
+
+# Environment variables
+.env
+.env.local
+
+# System files
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Documentation build
+docs/_build/
