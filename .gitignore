@@ -58,6 +58,9 @@ trimmed_videos/*
 *.mov
 *.mkv
 
+# Exported browser cookies — sensitive account credentials, never commit
+*cookies*.txt
+
 # Environment variables
 .env
 .env.local
