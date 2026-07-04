@@ -824,6 +824,40 @@ select.form-control {
     font-variant-numeric: tabular-nums;
 }
 
+/* Bulk selection */
+.select-cell {
+    width: 40px;
+    text-align: center;
+    padding-left: 0.6rem !important;
+    padding-right: 0.4rem !important;
+}
+
+.select-cell .form-check-input { margin: 0; vertical-align: middle; }
+
+.bulk-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding: 0.6rem 0.9rem;
+    margin-bottom: 0.75rem;
+    background: var(--accent-weak);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+}
+
+.bulk-bar .bulk-count { font-size: 0.85rem; font-weight: 550; color: var(--text); }
+
+.bulk-bar .bulk-count #bulkCount {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    font-weight: 680;
+}
+
+.bulk-bar .bulk-actions { display: flex; gap: 0.5rem; }
+
 /* Media previews */
 video, audio { border-radius: var(--r-sm); max-width: 100%; }
 video.rounded, video.shadow-sm { border: 1px solid var(--border); }

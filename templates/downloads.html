@@ -38,12 +38,24 @@
 
 <!-- Files Table -->
 {% if files %}
+<div id="bulkBar" class="bulk-bar" style="display: none;">
+    <span class="bulk-count"><span id="bulkCount">0</span> selected</span>
+    <div class="bulk-actions">
+        <button type="button" class="btn btn-sm btn-secondary js-bulk-clear">Clear</button>
+        <button type="button" class="btn btn-sm btn-danger js-bulk-delete">
+            <i class="fas fa-trash" aria-hidden="true"></i> Delete selected
+        </button>
+    </div>
+</div>
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover mb-0" id="fileTable">
                 <thead>
                     <tr>
+                        <th class="select-cell">
+                            <input type="checkbox" class="form-check-input js-select-all" aria-label="Select all">
+                        </th>
                         <th style="width: 40%;">
                             <i class="fas fa-file"></i> Filename
                         </th>
@@ -61,6 +73,9 @@
                 <tbody>
                     {% for file in files %}
                     <tr>
+                        <td class="select-cell">
+                            <input type="checkbox" class="form-check-input js-select" data-filename="{{ file }}" aria-label="Select {{ file }}">
+                        </td>
                         <td>
                             <div class="d-flex align-items-center">
                                 {% if file.endswith('.mp4') or file.endswith('.avi') or file.endswith('.mov') or file.endswith('.mkv') %}
@@ -70,7 +85,7 @@
                                 {% else %}
                                     <i class="fas fa-file text-secondary me-2"></i>
                                 {% endif %}
-                                <span class="text-truncate" style="max-width: 300px;" title="{{ file }}">
+                                <span class="text-truncate js-filename" style="max-width: 300px;" title="{{ file }}">
                                     {{ file }}
                                 </span>
                             </div>
@@ -169,7 +184,7 @@
         <div class="confirm-modal__header">
             <i class="fas fa-exclamation-triangle" aria-hidden="true"></i> Confirm deletion
         </div>
-        <div class="confirm-modal__body">
+        <div class="confirm-modal__body" id="confirmModalMessage">
             Delete this file? This can't be undone.
         </div>
         <div class="confirm-modal__footer">
@@ -177,7 +192,7 @@
                 <i class="fas fa-times" aria-hidden="true"></i> Cancel
             </button>
             <button type="button" class="btn btn-danger" id="customConfirmBtn" onclick="FileManager.confirmDelete()">
-                <i class="fas fa-trash" aria-hidden="true"></i> Delete file
+                <i class="fas fa-trash" aria-hidden="true"></i> Delete
             </button>
         </div>
     </div>
@@ -188,7 +203,7 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='file-manager.js') }}"></script>
 <script>
-    FileManager.init({ deletePrefix: '/delete_file/', itemNoun: 'file' });
+    FileManager.init({ deletePrefix: '/delete_file/', bulkDelete: '/delete_files', itemNoun: 'file' });
 
     window.updateStats = function () {
         const rows = document.querySelectorAll('#fileTable tbody tr');
@@ -197,7 +212,7 @@
         rows.forEach(row => {
             if (row.style.display === 'none') { return; }
             totalFiles++;
-            const span = row.querySelector('td:first-child span');
+            const span = row.querySelector('.js-filename');
             const file = span ? span.textContent.trim() : '';
             if (file.match(/\.(mp4|avi|mov|mkv)$/i)) {
                 videoCount++; estimatedSize += 50;

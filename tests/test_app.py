@@ -46,6 +46,66 @@ def test_delete_missing_file_returns_404(client):
     assert response.status_code == 404
 
 
+def test_bulk_delete_removes_selected_files(client, app):
+    folder = app.config["DOWNLOAD_FOLDER"]
+    for name in ("a.mp4", "b.mp3", "c.txt"):
+        open(os.path.join(folder, name), "w").close()
+
+    response = client.post("/delete_files", json={"filenames": ["a.mp4", "b.mp3"]})
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["success"] is True
+    assert body["deleted"] == 2
+    assert body["failed"] == 0
+    assert not os.path.exists(os.path.join(folder, "a.mp4"))
+    assert not os.path.exists(os.path.join(folder, "b.mp3"))
+    assert os.path.exists(os.path.join(folder, "c.txt"))
+
+
+def test_bulk_delete_rejects_traversal_names(client, app):
+    folder = app.config["DOWNLOAD_FOLDER"]
+    open(os.path.join(folder, "real.mp4"), "w").close()
+
+    response = client.post(
+        "/delete_files", json={"filenames": ["real.mp4", "..\\..\\secret.txt"]}
+    )
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["deleted"] == 1
+    assert body["failed"] == 1
+    assert body["success"] is False
+    assert not os.path.exists(os.path.join(folder, "real.mp4"))
+
+
+def test_bulk_delete_empty_returns_400(client):
+    assert client.post("/delete_files", json={"filenames": []}).status_code == 400
+    assert client.post("/delete_files", json={}).status_code == 400
+
+
+def test_bulk_delete_trimmed_videos(client, app):
+    folder = app.config["TRIMMED_FOLDER"]
+    open(os.path.join(folder, "clip_trimmed.mp4"), "w").close()
+
+    response = client.post(
+        "/delete_trimmed_videos", json={"filenames": ["clip_trimmed.mp4"]}
+    )
+    assert response.status_code == 200
+    assert response.get_json()["deleted"] == 1
+    assert not os.path.exists(os.path.join(folder, "clip_trimmed.mp4"))
+
+
+def test_bulk_delete_csrf_enforced(tmp_path):
+    class Cfg(Config):
+        WTF_CSRF_ENABLED = True
+        SECRET_KEY = "unit-test"
+        DOWNLOAD_FOLDER = str(tmp_path / "d")
+        TRIMMED_FOLDER = str(tmp_path / "t")
+
+    client = create_app(Cfg).test_client()
+    response = client.post("/delete_files", json={"filenames": ["x.mp4"]})
+    assert response.status_code in (400, 403)
+
+
 def test_download_traversal_returns_404(client):
     assert client.get("/download_file/..%5C..%5Csecret.txt").status_code == 404
 
