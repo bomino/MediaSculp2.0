@@ -45,3 +45,15 @@ def list_files(directory, extensions=None):
             continue
         result.append(name)
     return result
+
+
+def list_files_detailed(directory, extensions=None):
+    """Like list_files, but each entry is a dict with name, size and mtime."""
+    result = []
+    for name in list_files(directory, extensions):
+        try:
+            stat = os.stat(os.path.join(directory, name))
+        except OSError:
+            continue
+        result.append({"name": name, "size": stat.st_size, "mtime": stat.st_mtime})
+    return result

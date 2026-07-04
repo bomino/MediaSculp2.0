@@ -17,8 +17,8 @@
 <!-- Search and Filter Section -->
 <div class="card mb-4">
     <div class="card-body">
-        <div class="row align-items-center">
-            <div class="col-md-6">
+        <div class="row align-items-center g-2">
+            <div class="col-md-5">
                 <div class="input-group">
                     <span class="input-group-text">
                         <i class="fas fa-search"></i>
@@ -27,9 +27,29 @@
                            placeholder="Search files by name..." onkeyup="FileManager.searchFiles(this)">
                 </div>
             </div>
-            <div class="col-md-6 text-end">
-                <span class="badge badge-primary">
-                    <i class="fas fa-file"></i> Total Files: <span id="fileCount">{{ files|length }}</span>
+            <div class="col-md-3">
+                <select id="typeFilter" class="form-select" aria-label="Filter by type"
+                        onchange="FileManager.filterType(this)">
+                    <option value="all">All types</option>
+                    <option value="video">Video</option>
+                    <option value="audio">Audio</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select id="sortSelect" class="form-select" aria-label="Sort files"
+                        onchange="FileManager.sortFiles(this)">
+                    <option value="name-asc">Name A–Z</option>
+                    <option value="name-desc">Name Z–A</option>
+                    <option value="size-desc">Largest first</option>
+                    <option value="size-asc">Smallest first</option>
+                    <option value="date-desc">Newest first</option>
+                    <option value="date-asc">Oldest first</option>
+                </select>
+            </div>
+            <div class="col-md-1 text-end">
+                <span class="badge badge-primary" title="Files shown">
+                    <span id="fileCount">{{ files|length }}</span>
                 </span>
             </div>
         </div>
@@ -56,50 +76,58 @@
                         <th class="select-cell">
                             <input type="checkbox" class="form-check-input js-select-all" aria-label="Select all">
                         </th>
-                        <th style="width: 40%;">
+                        <th style="width: 32%;">
                             <i class="fas fa-file"></i> Filename
                         </th>
-                        <th style="width: 30%;">
+                        <th style="width: 22%;">
                             <i class="fas fa-eye"></i> Preview
                         </th>
-                        <th style="width: 15%;">
+                        <th style="width: 11%;">
                             <i class="fas fa-info-circle"></i> Type
                         </th>
-                        <th style="width: 15%;">
+                        <th style="width: 11%;">
+                            <i class="fas fa-weight-hanging"></i> Size
+                        </th>
+                        <th style="width: 13%;">
+                            <i class="fas fa-clock"></i> Modified
+                        </th>
+                        <th style="width: 11%;">
                             <i class="fas fa-cogs"></i> Actions
                         </th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for file in files %}
-                    <tr>
+                    {% set ext = file.name.rsplit('.', 1)[-1]|lower if '.' in file.name else '' %}
+                    {% set kind = 'video' if ext in ['mp4', 'avi', 'mov', 'mkv'] else ('audio' if ext in ['mp3', 'wav', 'ogg'] else 'other') %}
+                    <tr data-name="{{ file.name }}" data-size="{{ file.size }}" data-mtime="{{ file.mtime }}" data-type="{{ kind }}">
                         <td class="select-cell">
-                            <input type="checkbox" class="form-check-input js-select" data-filename="{{ file }}" aria-label="Select {{ file }}">
+                            <input type="checkbox" class="form-check-input js-select" data-filename="{{ file.name }}" aria-label="Select {{ file.name }}">
                         </td>
                         <td>
                             <div class="d-flex align-items-center">
-                                {% if file.endswith('.mp4') or file.endswith('.avi') or file.endswith('.mov') or file.endswith('.mkv') %}
+                                {% if kind == 'video' %}
                                     <i class="fas fa-video text-danger me-2"></i>
-                                {% elif file.endswith('.mp3') or file.endswith('.wav') or file.endswith('.ogg') %}
+                                {% elif kind == 'audio' %}
                                     <i class="fas fa-music text-success me-2"></i>
                                 {% else %}
                                     <i class="fas fa-file text-secondary me-2"></i>
                                 {% endif %}
-                                <span class="text-truncate js-filename" style="max-width: 300px;" title="{{ file }}">
-                                    {{ file }}
+                                <span class="text-truncate js-filename" style="max-width: 300px;" title="{{ file.name }}">
+                                    {{ file.name }}
                                 </span>
                             </div>
                         </td>
                         <td>
-                            {% if file.endswith('.mp4') %}
-                            <video width="200" height="100" controls class="rounded">
-                                <source src="{{ url_for('downloads.download_file', filename=file) }}" type="video/mp4">
+                            {% if ext == 'mp4' %}
+                            <video width="200" height="100" controls preload="none" class="rounded">
+                                <source src="{{ url_for('downloads.download_file', filename=file.name) }}" type="video/mp4">
                                 Your browser does not support the video tag.
                             </video>
-                            {% elif file.endswith('.mp3') or file.endswith('.wav') or file.endswith('.ogg') %}
-                            <audio controls class="w-100" style="max-width: 200px;">
-                                <source src="{{ url_for('downloads.download_file', filename=file) }}" 
-                                        type="audio/{{ file.split('.')[-1] }}">
+                            {% elif kind == 'audio' %}
+                            <audio controls preload="none" class="w-100" style="max-width: 200px;">
+                                <source src="{{ url_for('downloads.download_file', filename=file.name) }}"
+                                        type="audio/{{ ext }}">
                                 Your browser does not support the audio element.
                             </audio>
                             {% else %}
@@ -109,22 +137,24 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if file.endswith('.mp4') or file.endswith('.avi') or file.endswith('.mov') or file.endswith('.mkv') %}
+                            {% if kind == 'video' %}
                                 <span class="badge badge-danger">VIDEO</span>
-                            {% elif file.endswith('.mp3') or file.endswith('.wav') or file.endswith('.ogg') %}
+                            {% elif kind == 'audio' %}
                                 <span class="badge badge-success">AUDIO</span>
                             {% else %}
                                 <span class="badge badge-secondary">OTHER</span>
                             {% endif %}
                         </td>
+                        <td class="text-nowrap"><small class="text-muted">{{ file.size | filesizeformat }}</small></td>
+                        <td class="text-nowrap"><small class="text-muted">{{ file.mtime | datetimeformat }}</small></td>
                         <td>
                             <div class="btn-group" role="group">
-                                <a href="{{ url_for('downloads.download_file', filename=file) }}"
-                                   class="btn btn-sm btn-primary" title="Download" aria-label="Download {{ file }}">
+                                <a href="{{ url_for('downloads.download_file', filename=file.name) }}"
+                                   class="btn btn-sm btn-primary" title="Download" aria-label="Download {{ file.name }}">
                                     <i class="fas fa-download" aria-hidden="true"></i>
                                 </a>
-                                <button type="button" class="btn btn-sm btn-danger js-delete" data-filename="{{ file }}"
-                                        title="Delete" aria-label="Delete {{ file }}">
+                                <button type="button" class="btn btn-sm btn-danger js-delete" data-filename="{{ file.name }}"
+                                        title="Delete" aria-label="Delete {{ file.name }}">
                                     <i class="fas fa-trash" aria-hidden="true"></i>
                                 </button>
                             </div>
@@ -205,32 +235,31 @@
 <script>
     FileManager.init({ deletePrefix: '/delete_file/', bulkDelete: '/delete_files', itemNoun: 'file' });
 
+    function formatBytes(bytes) {
+        if (!bytes) { return '0 B'; }
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let value = bytes, unit = 0;
+        while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit++; }
+        return value.toFixed(unit === 0 ? 0 : 1) + ' ' + units[unit];
+    }
+
     window.updateStats = function () {
         const rows = document.querySelectorAll('#fileTable tbody tr');
-        let videoCount = 0, audioCount = 0, otherCount = 0, estimatedSize = 0, totalFiles = 0;
+        let videoCount = 0, audioCount = 0, otherCount = 0, totalBytes = 0;
 
         rows.forEach(row => {
             if (row.style.display === 'none') { return; }
-            totalFiles++;
-            const span = row.querySelector('.js-filename');
-            const file = span ? span.textContent.trim() : '';
-            if (file.match(/\.(mp4|avi|mov|mkv)$/i)) {
-                videoCount++; estimatedSize += 50;
-            } else if (file.match(/\.(mp3|wav|ogg)$/i)) {
-                audioCount++; estimatedSize += 5;
-            } else {
-                otherCount++; estimatedSize += 1;
-            }
+            totalBytes += parseFloat(row.getAttribute('data-size') || '0');
+            const kind = row.getAttribute('data-type');
+            if (kind === 'video') { videoCount++; }
+            else if (kind === 'audio') { audioCount++; }
+            else { otherCount++; }
         });
 
         document.getElementById('videoCount').textContent = videoCount;
         document.getElementById('audioCount').textContent = audioCount;
         document.getElementById('otherCount').textContent = otherCount;
-
-        const sizeText = estimatedSize > 1024
-            ? (estimatedSize / 1024).toFixed(1) + ' GB'
-            : estimatedSize + ' MB';
-        document.getElementById('storageSize').textContent = totalFiles > 0 ? '~' + sizeText : '0 MB';
+        document.getElementById('storageSize').textContent = formatBytes(totalBytes);
     };
 </script>
 {% endblock %}

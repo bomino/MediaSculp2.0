@@ -369,6 +369,23 @@ def test_build_ydl_opts_sponsorblock_and_chapters():
     assert pps["FFmpegMetadata"]["add_metadata"] is False
 
 
+def test_list_files_detailed(tmp_path):
+    from utils import list_files_detailed
+
+    (tmp_path / "b.mp4").write_bytes(b"xxxxx")
+    (tmp_path / "a.mp3").write_bytes(b"xx")
+    (tmp_path / ".hidden").write_bytes(b"z")
+    (tmp_path / "clip.part").write_bytes(b"z")
+
+    rows = list_files_detailed(str(tmp_path))
+    names = [r["name"] for r in rows]
+    assert names == ["a.mp3", "b.mp4"]
+    sizes = {r["name"]: r["size"] for r in rows}
+    assert sizes["a.mp3"] == 2
+    assert sizes["b.mp4"] == 5
+    assert all(isinstance(r["mtime"], float) for r in rows)
+
+
 def test_parse_extras_includes_new_options():
     from werkzeug.datastructures import MultiDict
 

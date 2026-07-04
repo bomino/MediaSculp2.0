@@ -28,9 +28,21 @@ def create_app(config_class=Config):
     app.register_blueprint(downloads_bp)
 
     register_error_handlers(app)
+    register_template_filters(app)
     if not app.config.get("TESTING"):
         _ytdlp_startup(app)
     return app
+
+
+def register_template_filters(app):
+    import datetime
+
+    @app.template_filter("datetimeformat")
+    def datetimeformat(timestamp):
+        try:
+            return datetime.datetime.fromtimestamp(timestamp).strftime("%b %d, %Y %H:%M")
+        except (TypeError, ValueError, OSError):
+            return ""
 
 
 def _ytdlp_startup(app):

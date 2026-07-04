@@ -163,21 +163,55 @@
         }
     }
 
-    function searchFiles(input) {
-        var filter = input.value.toLowerCase();
+    var activeType = 'all';
+
+    function rowName(row) { return (row.getAttribute('data-name') || '').toLowerCase(); }
+    function rowSize(row) { return parseFloat(row.getAttribute('data-size') || '0'); }
+    function rowMtime(row) { return parseFloat(row.getAttribute('data-mtime') || '0'); }
+
+    function applyFilters() {
+        var searchBox = document.getElementById('searchInput');
+        var filter = searchBox ? searchBox.value.toLowerCase() : '';
         var rows = document.querySelectorAll('#fileTable tbody tr');
         var visible = 0;
         rows.forEach(function (row) {
-            var span = row.querySelector('.js-filename');
-            var text = span ? span.textContent.toLowerCase() : '';
-            var match = text.indexOf(filter) !== -1;
-            row.style.display = match ? '' : 'none';
-            if (match) { visible++; }
+            var nameMatch = rowName(row).indexOf(filter) !== -1;
+            var typeMatch = activeType === 'all' || row.getAttribute('data-type') === activeType;
+            var show = nameMatch && typeMatch;
+            row.style.display = show ? '' : 'none';
+            if (show) { visible++; }
         });
         var count = document.getElementById('fileCount');
         if (count) { count.textContent = visible; }
         updateSelectionUI();
         if (typeof window.updateStats === 'function') { window.updateStats(); }
+    }
+
+    function searchFiles() {
+        applyFilters();
+    }
+
+    function filterType(select) {
+        activeType = select.value;
+        applyFilters();
+    }
+
+    var comparators = {
+        'name-asc': function (a, b) { return rowName(a).localeCompare(rowName(b)); },
+        'name-desc': function (a, b) { return rowName(b).localeCompare(rowName(a)); },
+        'size-desc': function (a, b) { return rowSize(b) - rowSize(a); },
+        'size-asc': function (a, b) { return rowSize(a) - rowSize(b); },
+        'date-desc': function (a, b) { return rowMtime(b) - rowMtime(a); },
+        'date-asc': function (a, b) { return rowMtime(a) - rowMtime(b); }
+    };
+
+    function sortFiles(select) {
+        var cmp = comparators[select.value];
+        var tbody = document.querySelector('#fileTable tbody');
+        if (!cmp || !tbody) { return; }
+        Array.prototype.slice.call(tbody.querySelectorAll('tr'))
+            .sort(cmp)
+            .forEach(function (row) { tbody.appendChild(row); });
     }
 
     function init(options) {
@@ -213,6 +247,8 @@
         hideDeleteConfirm: hideDeleteConfirm,
         confirmDelete: confirmDelete,
         searchFiles: searchFiles,
+        filterType: filterType,
+        sortFiles: sortFiles,
         showAlert: showAlert
     };
 })();

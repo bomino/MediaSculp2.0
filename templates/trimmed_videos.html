@@ -17,8 +17,8 @@
 <!-- Search and Filter Section -->
 <div class="card mb-4">
     <div class="card-body">
-        <div class="row align-items-center">
-            <div class="col-md-6">
+        <div class="row align-items-center g-2">
+            <div class="col-md-7">
                 <div class="input-group">
                     <span class="input-group-text">
                         <i class="fas fa-search"></i>
@@ -27,9 +27,20 @@
                            placeholder="Search videos by name..." onkeyup="FileManager.searchFiles(this)">
                 </div>
             </div>
-            <div class="col-md-6 text-end">
-                <span class="badge badge-primary">
-                    <i class="fas fa-video"></i> Total Videos: <span id="fileCount">{{ files|length }}</span>
+            <div class="col-md-4">
+                <select id="sortSelect" class="form-select" aria-label="Sort videos"
+                        onchange="FileManager.sortFiles(this)">
+                    <option value="name-asc">Name A–Z</option>
+                    <option value="name-desc">Name Z–A</option>
+                    <option value="size-desc">Largest first</option>
+                    <option value="size-asc">Smallest first</option>
+                    <option value="date-desc">Newest first</option>
+                    <option value="date-asc">Oldest first</option>
+                </select>
+            </div>
+            <div class="col-md-1 text-end">
+                <span class="badge badge-primary" title="Videos shown">
+                    <span id="fileCount">{{ files|length }}</span>
                 </span>
             </div>
         </div>
@@ -56,38 +67,45 @@
                         <th class="select-cell">
                             <input type="checkbox" class="form-check-input js-select-all" aria-label="Select all">
                         </th>
-                        <th style="width: 35%;">
+                        <th style="width: 30%;">
                             <i class="fas fa-file-video"></i> Filename
                         </th>
-                        <th style="width: 35%;">
+                        <th style="width: 28%;">
                             <i class="fas fa-play-circle"></i> Preview
                         </th>
-                        <th style="width: 15%;">
+                        <th style="width: 10%;">
                             <i class="fas fa-info-circle"></i> Format
                         </th>
-                        <th style="width: 15%;">
+                        <th style="width: 11%;">
+                            <i class="fas fa-weight-hanging"></i> Size
+                        </th>
+                        <th style="width: 12%;">
+                            <i class="fas fa-clock"></i> Modified
+                        </th>
+                        <th style="width: 9%;">
                             <i class="fas fa-cogs"></i> Actions
                         </th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for file in files %}
-                    <tr>
+                    {% set ext = file.name.rsplit('.', 1)[-1]|lower if '.' in file.name else '' %}
+                    <tr data-name="{{ file.name }}" data-size="{{ file.size }}" data-mtime="{{ file.mtime }}" data-type="video">
                         <td class="select-cell">
-                            <input type="checkbox" class="form-check-input js-select" data-filename="{{ file }}" aria-label="Select {{ file }}">
+                            <input type="checkbox" class="form-check-input js-select" data-filename="{{ file.name }}" aria-label="Select {{ file.name }}">
                         </td>
                         <td>
                             <div class="d-flex align-items-center">
                                 <i class="fas fa-film text-primary me-2"></i>
-                                <span class="text-truncate js-filename" style="max-width: 250px;" title="{{ file }}">
-                                    {{ file }}
+                                <span class="text-truncate js-filename" style="max-width: 250px;" title="{{ file.name }}">
+                                    {{ file.name }}
                                 </span>
                             </div>
                         </td>
                         <td>
-                            {% if file.endswith('.mp4') %}
-                            <video width="240" height="135" controls class="rounded shadow-sm">
-                                <source src="{{ url_for('downloads.download_trimmed', filename=file) }}" type="video/mp4">
+                            {% if ext == 'mp4' %}
+                            <video width="240" height="135" controls preload="none" class="rounded shadow-sm">
+                                <source src="{{ url_for('downloads.download_trimmed', filename=file.name) }}" type="video/mp4">
                                 Your browser does not support the video tag.
                             </video>
                             {% else %}
@@ -98,26 +116,28 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if file.endswith('.mp4') %}
+                            {% if ext == 'mp4' %}
                                 <span class="badge badge-primary">MP4</span>
-                            {% elif file.endswith('.avi') %}
+                            {% elif ext == 'avi' %}
                                 <span class="badge badge-info">AVI</span>
-                            {% elif file.endswith('.mov') %}
+                            {% elif ext == 'mov' %}
                                 <span class="badge badge-success">MOV</span>
-                            {% elif file.endswith('.mkv') %}
+                            {% elif ext == 'mkv' %}
                                 <span class="badge badge-warning">MKV</span>
                             {% else %}
                                 <span class="badge badge-secondary">OTHER</span>
                             {% endif %}
                         </td>
+                        <td class="text-nowrap"><small class="text-muted">{{ file.size | filesizeformat }}</small></td>
+                        <td class="text-nowrap"><small class="text-muted">{{ file.mtime | datetimeformat }}</small></td>
                         <td>
                             <div class="btn-group" role="group">
-                                <a href="{{ url_for('downloads.download_trimmed', filename=file) }}"
-                                   class="btn btn-sm btn-primary" title="Download" aria-label="Download {{ file }}" download>
+                                <a href="{{ url_for('downloads.download_trimmed', filename=file.name) }}"
+                                   class="btn btn-sm btn-primary" title="Download" aria-label="Download {{ file.name }}" download>
                                     <i class="fas fa-download" aria-hidden="true"></i>
                                 </a>
-                                <button type="button" class="btn btn-sm btn-danger js-delete" data-filename="{{ file }}"
-                                        title="Delete" aria-label="Delete {{ file }}">
+                                <button type="button" class="btn btn-sm btn-danger js-delete" data-filename="{{ file.name }}"
+                                        title="Delete" aria-label="Delete {{ file.name }}">
                                     <i class="fas fa-trash" aria-hidden="true"></i>
                                 </button>
                             </div>
@@ -198,30 +218,30 @@
 <script>
     FileManager.init({ deletePrefix: '/delete_trimmed_video/', bulkDelete: '/delete_trimmed_videos', itemNoun: 'video' });
 
+    function formatBytes(bytes) {
+        if (!bytes) { return '0 B'; }
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let value = bytes, unit = 0;
+        while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit++; }
+        return value.toFixed(unit === 0 ? 0 : 1) + ' ' + units[unit];
+    }
+
     window.updateStats = function () {
         const rows = document.querySelectorAll('#fileTable tbody tr');
-        let mp4Count = 0, otherCount = 0, totalSize = 0, visibleRows = 0;
+        let mp4Count = 0, otherCount = 0, totalBytes = 0, visibleRows = 0;
 
         rows.forEach(row => {
             if (row.style.display === 'none') { return; }
             visibleRows++;
-            const span = row.querySelector('.js-filename');
-            const file = span ? span.textContent.trim() : '';
-            if (file.match(/\.mp4$/i)) {
-                mp4Count++; totalSize += 30;
-            } else if (file.match(/\.(avi|mov|mkv)$/i)) {
-                otherCount++; totalSize += 40;
-            }
+            totalBytes += parseFloat(row.getAttribute('data-size') || '0');
+            const name = row.getAttribute('data-name') || '';
+            if (name.match(/\.mp4$/i)) { mp4Count++; } else { otherCount++; }
         });
 
         document.getElementById('mp4Count').textContent = mp4Count;
         document.getElementById('otherFormatCount').textContent = otherCount;
         document.getElementById('totalCount').textContent = visibleRows;
-
-        const sizeText = totalSize > 1024
-            ? (totalSize / 1024).toFixed(1) + ' GB'
-            : totalSize + ' MB';
-        document.getElementById('totalSize').textContent = visibleRows > 0 ? '~' + sizeText : '0 MB';
+        document.getElementById('totalSize').textContent = formatBytes(totalBytes);
     };
 </script>
 {% endblock %}

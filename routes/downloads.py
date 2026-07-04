@@ -2,7 +2,7 @@ import os
 
 from flask import Blueprint, current_app, jsonify, render_template, request, send_from_directory
 
-from utils import list_files, resolve_within
+from utils import list_files_detailed, resolve_within
 
 downloads_bp = Blueprint("downloads", __name__)
 
@@ -55,7 +55,7 @@ def _delete_many(folder):
 
 @downloads_bp.route("/downloads", methods=["GET"])
 def list_downloads():
-    return render_template("downloads.html", files=list_files(_download_folder()))
+    return render_template("downloads.html", files=list_files_detailed(_download_folder()))
 
 
 @downloads_bp.route("/download_file/<path:filename>")
@@ -80,7 +80,7 @@ def download_trimmed(filename):
 
 @downloads_bp.route("/trimmed_videos", methods=["GET"])
 def trimmed_videos():
-    return render_template("trimmed_videos.html", files=list_files(_trimmed_folder()))
+    return render_template("trimmed_videos.html", files=list_files_detailed(_trimmed_folder()))
 
 
 @downloads_bp.route("/delete_trimmed_video/<path:filename>", methods=["POST"])
