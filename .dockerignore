@@ -1,0 +1,14 @@
+venv/
+__pycache__/
+*.py[cod]
+.git/
+.github/
+.pytest_cache/
+tests/
+downloads/
+trimmed_videos/
+*.db
+*.log
+.env
+.playwright-mcp/
+*.png

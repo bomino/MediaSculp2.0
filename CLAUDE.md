@@ -38,8 +38,15 @@ MediaSculp 2.0 is a Flask-based web application for downloading and processing m
 
 ### Running the Application
 ```bash
-python app.py  # Serves http://127.0.0.1:5000 (debug OFF unless FLASK_DEBUG=1)
+python app.py  # Flask dev server, http://127.0.0.1:5000 (debug OFF unless FLASK_DEBUG=1)
 ```
+
+### Docker / production
+```bash
+docker compose up --build   # container (waitress + ffmpeg) on http://127.0.0.1:5000
+python serve.py             # production server (waitress) without Docker
+```
+`app.py` is the dev server; `serve.py` (waitress, `Dockerfile`) is production. Run a **single instance** — the in-memory job registry/semaphore are not shared across processes.
 
 ### Installing Dependencies
 ```bash

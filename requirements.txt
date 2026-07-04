@@ -26,6 +26,7 @@ setuptools==75.1.0
 tqdm==4.66.5
 urllib3==2.2.3
 websockets==13.1
+waitress==3.0.2
 Werkzeug==3.0.4
 # yt-dlp must stay current: stale versions break against YouTube's player/signature changes.
 yt-dlp>=2025.6.0

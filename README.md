@@ -65,7 +65,25 @@ Copy `.env.example` to `.env` and adjust. Everything is optional with safe defau
 | `AUTO_UPDATE_YTDLP` | `0` | If `1`, run `pip install -U yt-dlp` at startup (restart to load). |
 | `HOST` / `PORT` | `127.0.0.1` / `5000` | Bind address and port. Read by `python app.py` directly (not `config.py`). |
 
-`SECRET_KEY`, `FLASK_DEBUG`, the folder paths, `FFMPEG_LOCATION`, and `MAX_UPLOAD_BYTES` are read by `config.py` at startup; `HOST`/`PORT` are read by the `python app.py` entrypoint and only apply when running the dev server that way.
+`SECRET_KEY`, `FLASK_DEBUG`, the folder paths, `FFMPEG_LOCATION`, and `MAX_UPLOAD_BYTES` are read by `config.py` at startup; `HOST`/`PORT` are read by the `python app.py` / `serve.py` entrypoints.
+
+## Run with Docker
+
+```bash
+docker compose up --build
+```
+
+Open `http://127.0.0.1:5000`. Downloads and trimmed clips are written to `./downloads` and `./trimmed_videos` on the host (mounted as volumes), and ffmpeg is bundled in the image. Set a fixed `SECRET_KEY` in `docker-compose.yml` so sessions survive a restart.
+
+## Production server
+
+`python app.py` runs the Flask **dev server** — fine locally, not for exposure. For a production-style run, use the bundled [waitress](https://github.com/Pylons/waitress) server:
+
+```bash
+python serve.py        # HOST/PORT via env; defaults to 127.0.0.1:5000
+```
+
+Run a **single instance only** — the download-job registry and concurrency limit are in-memory, so multiple workers or replicas would not share them.
 
 ## Usage
 
@@ -90,7 +108,8 @@ The **Downloads** and **Trimmed** pages let you preview, download, and delete fi
 
 ```
 MediaSculp2.0/
-├── app.py                    # App factory (create_app), CSRF, error handlers, entrypoint
+├── app.py                    # App factory (create_app), CSRF, error handlers, dev entry
+├── serve.py                  # Production entrypoint (waitress)
 ├── config.py                 # Env-driven configuration (Config / TestConfig)
 ├── utils.py                  # safe path resolution, unique naming, file listing
 ├── routes/
@@ -104,11 +123,14 @@ MediaSculp2.0/
 ├── static/
 │   ├── styles.css            # Token-based light/dark design system
 │   ├── file-manager.js       # Shared delete/search/stats logic (FileManager)
+│   ├── downloads-panel.js    # Active-downloads panel (all pages)
 │   └── QidayaLogo-small.png  # Logo
 ├── icons/                    # App icon PNGs (72–512 px)
 ├── tests/                    # pytest suite (Flask test client)
 ├── requirements.txt          # Runtime dependencies
 ├── requirements-dev.txt      # Runtime + pytest
+├── Dockerfile                # Container image (waitress + ffmpeg)
+├── docker-compose.yml        # One-command Docker run
 ├── .env.example              # Configuration template
 ├── downloads/                # Downloaded files (git-ignored)
 ├── trimmed_videos/           # Trimmed clips (git-ignored)
