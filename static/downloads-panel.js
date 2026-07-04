@@ -103,5 +103,28 @@
             .catch(function () { /* stop polling on error */ });
     }
 
-    document.addEventListener('DOMContentLoaded', pollDownloads);
+    function streamDownloads() {
+        if (typeof window.EventSource === 'undefined') { pollDownloads(); return; }
+        var source;
+        try { source = new EventSource('/downloads_stream'); }
+        catch (e) { pollDownloads(); return; }
+
+        var idleClosed = false;
+        source.onmessage = function (event) {
+            try {
+                var data = JSON.parse(event.data);
+                renderPanel((data && data.jobs) || []);
+            } catch (e) { /* ignore malformed frame */ }
+        };
+        source.addEventListener('idle', function () {
+            idleClosed = true;
+            source.close();
+        });
+        source.onerror = function () {
+            source.close();
+            if (!idleClosed) { pollDownloads(); }
+        };
+    }
+
+    document.addEventListener('DOMContentLoaded', streamDownloads);
 })();

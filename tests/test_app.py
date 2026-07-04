@@ -369,6 +369,20 @@ def test_build_ydl_opts_sponsorblock_and_chapters():
     assert pps["FFmpegMetadata"]["add_metadata"] is False
 
 
+def test_downloads_stream_first_frame(app):
+    import json
+
+    from routes.main import downloads_stream
+
+    with app.test_request_context("/downloads_stream"):
+        response = downloads_stream()
+        assert response.mimetype == "text/event-stream"
+        first = next(iter(response.response))
+        assert first.startswith("data:")
+        payload = json.loads(first[len("data:"):].strip())
+        assert "jobs" in payload
+
+
 def test_list_files_detailed(tmp_path):
     from utils import list_files_detailed
 

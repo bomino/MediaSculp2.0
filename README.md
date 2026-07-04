@@ -11,7 +11,7 @@ It ships with a compact interface that has both light and dark themes.
 - **Download audio or video** from any site yt-dlp supports, with a format picker (MP3, WAV, OGG, MP4) and quality/bitrate selection.
 - **Extras & batch** — optionally embed a thumbnail/cover art, save metadata tags, fetch subtitles, embed chapter markers, and skip sponsor segments ([SponsorBlock](https://sponsor.ajay.app/)); paste several links (one per line) to download them all at once. Your last options are remembered.
 - **Playlists** — download a whole playlist, or cap it to the first N items.
-- **Background downloads** — downloads run in the background and appear in an **Active downloads** panel (on every page) with per-job progress and a **Cancel** button, so a long playlist never freezes the page. Multiple downloads run in parallel up to a configurable limit; the rest queue. Downloaded video IDs are recorded (yt-dlp `download_archive`) so re-runs resume rather than re-download.
+- **Background downloads** — downloads run in the background and appear in an **Active downloads** panel (on every page) with live per-job progress (streamed over Server-Sent Events, with polling as a fallback) and a **Cancel** button, so a long playlist never freezes the page. Multiple downloads run in parallel up to a configurable limit; the rest queue. Downloaded video IDs are recorded (yt-dlp `download_archive`) so re-runs resume rather than re-download.
 - **Trim clips** — pick a downloaded video and cut a clip by start time and duration.
 - **Upload** local video files to trim them.
 - **Manage files** — preview, download, and delete files; instant search (Ctrl+K), sort by name/size/date, filter by type, and real file sizes with at-a-glance counts.
@@ -151,6 +151,8 @@ MediaSculp2.0/
 | GET | `/` | Home (download / trim / upload) |
 | POST | `/` | Start a download job or run a trim |
 | GET | `/download_status/<job_id>` | JSON status/progress of a download job |
+| GET | `/downloads_status` | JSON status of all active/recent jobs |
+| GET | `/downloads_stream` | Server-Sent Events stream of job status |
 | POST | `/cancel_download/<job_id>` | Cancel a running download |
 | GET | `/history` | Download history (searchable) |
 | POST | `/redownload/<id>` | Re-download a history entry |

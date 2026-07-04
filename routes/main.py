@@ -1,13 +1,16 @@
+import json
 import os
 import re
 import shutil
 import threading
+import time
 import uuid
 from datetime import datetime
 
 import yt_dlp
 from flask import (
     Blueprint,
+    Response,
     current_app,
     flash,
     jsonify,
@@ -411,12 +414,54 @@ def download_status(job_id):
         return jsonify(dict(job))
 
 
-@main_bp.route("/downloads_status")
-def downloads_status():
+def _jobs_snapshot():
     with _jobs_lock:
         jobs = [dict(job) for job in _jobs.values()]
     jobs.sort(key=lambda j: j.get("seq", 0))
-    return jsonify({"jobs": jobs})
+    return jobs
+
+
+@main_bp.route("/downloads_status")
+def downloads_status():
+    return jsonify({"jobs": _jobs_snapshot()})
+
+
+@main_bp.route("/downloads_stream")
+def downloads_stream():
+    """Server-Sent Events feed of job status, so the panel updates without polling.
+
+    Emits a frame whenever the snapshot changes, a heartbeat comment otherwise,
+    and closes itself after a stretch of inactivity so a worker thread is not
+    held open forever; the client falls back to polling once the stream ends.
+    """
+    poll_interval = 1.5
+    max_idle_ticks = 20
+
+    def stream():
+        last_payload = None
+        idle_ticks = 0
+        while idle_ticks < max_idle_ticks:
+            jobs = _jobs_snapshot()
+            payload = json.dumps({"jobs": jobs})
+            if payload != last_payload:
+                last_payload = payload
+                yield f"data: {payload}\n\n"
+            else:
+                yield ": ping\n\n"
+            active = any(job.get("status") in ("running", "queued") for job in jobs)
+            idle_ticks = 0 if active else idle_ticks + 1
+            time.sleep(poll_interval)
+        yield "event: idle\ndata: {}\n\n"
+
+    return Response(
+        stream(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @main_bp.route("/cancel_download/<job_id>", methods=["POST"])
