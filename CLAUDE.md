@@ -103,7 +103,7 @@ source venv/bin/activate  # Linux/Mac
 3. **External Dependencies**
    - **FFmpeg**: Resolved by `config._resolve_ffmpeg()` — `FFMPEG_LOCATION`, else `PATH`, else the bundled `imageio-ffmpeg` binary. A separate install is optional.
    - **yt-dlp**: Download functionality (keep current — stale pins break against YouTube). Installed as `yt-dlp[default]` to pull `yt-dlp-ejs` (the JS challenge / PO-token solver). `YTDLP_NIGHTLY=1` tracks the nightly channel (both the pip auto-update and the frozen vendor updater).
-   - **JS runtime (Node ≥22 / Deno)**: required by yt-dlp's EJS solver for many YouTube videos — without it, extraction silently returns storyboards only. `config._resolve_js_runtime()` picks one (env `YTDLP_JS_RUNTIME` → deno → node on PATH) and `_build_ydl_opts` passes it as `js_runtimes={name: {}}` (yt-dlp defaults to deno-only, so naming node explicitly matters). Failed downloads are translated to guidance via `routes/main._diagnose` off a `_CaptureLogger`.
+   - **JS runtime (Node ≥22 / Deno)**: required by yt-dlp's EJS solver for many YouTube videos — without it, extraction silently returns storyboards only. `config._resolve_js_runtime()` picks one (env `YTDLP_JS_RUNTIME` → a Deno vendored in `runtimes/` → deno/node on PATH) and `_build_ydl_opts` passes it as `js_runtimes={name: {}}` (yt-dlp defaults to deno-only, so naming node explicitly matters). The packaged app ships Deno: the CI build (`build-desktop.yml`) downloads it into `runtimes/` and `MediaSculp.spec` bundles it. Failed downloads are translated to guidance via `routes/main._diagnose` off a `_CaptureLogger`.
    - **moviepy**: Video trimming (uses the bundled `imageio-ffmpeg` binary)
 
 ### Key Technical Details

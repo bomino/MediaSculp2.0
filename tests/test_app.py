@@ -486,6 +486,21 @@ def test_ytdlp_updater_ensure_on_path(tmp_path, monkeypatch):
             sys.path.remove(str(vendor))
 
 
+def test_resolve_js_runtime_prefers_vendored_deno(tmp_path, monkeypatch):
+    import os
+
+    import config
+
+    monkeypatch.delenv("YTDLP_JS_RUNTIME", raising=False)
+    runtimes = tmp_path / "runtimes"
+    runtimes.mkdir()
+    (runtimes / "deno.exe").write_text("")  # dummy binary
+    monkeypatch.setattr(config, "_js_runtime_dirs", lambda: [str(runtimes)])
+
+    assert config._resolve_js_runtime() == "deno"
+    assert str(runtimes) in os.environ["PATH"]
+
+
 def test_resolve_cookies_autodetect(tmp_path, monkeypatch):
     import config
 

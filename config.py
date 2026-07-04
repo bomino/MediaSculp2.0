@@ -28,14 +28,24 @@ def _env_bool(name, default=False):
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _js_runtime_dirs():
+    """Directories that may hold a vendored JS runtime (a bundled `runtimes/`)."""
+    dirs = []
+    if getattr(sys, "frozen", False):
+        dirs.append(os.path.join(getattr(sys, "_MEIPASS", BASE_DIR), "runtimes"))
+        dirs.append(os.path.join(os.path.dirname(sys.executable), "runtimes"))
+    dirs.append(os.path.join(BASE_DIR, "runtimes"))
+    return dirs
+
+
 def _resolve_js_runtime():
     """Pick a JavaScript runtime for yt-dlp's challenge / PO-token solver.
 
     Newer yt-dlp needs Node >=22 or Deno to descramble YouTube's nsig and mint
     PO tokens; without one, extraction silently degrades to storyboard-only.
     yt-dlp defaults to deno, so a machine with only Node still fails unless the
-    runtime is named explicitly. Honors YTDLP_JS_RUNTIME (a name like
-    'node'/'deno' or a path to the binary), else prefers deno then node on PATH.
+    runtime is named explicitly. Order: YTDLP_JS_RUNTIME (name or path) → a Deno
+    vendored in runtimes/ (the packaged app ships one) → deno/node on PATH.
     Returns the runtime name, or None.
     """
     override = os.environ.get("YTDLP_JS_RUNTIME")
@@ -47,6 +57,12 @@ def _resolve_js_runtime():
                 os.environ["PATH"] = directory + os.pathsep + os.environ.get("PATH", "")
             return os.path.splitext(os.path.basename(override))[0].lower() or None
         return override.lower()
+    for directory in dict.fromkeys(_js_runtime_dirs()):
+        for exe in ("deno.exe", "deno"):
+            candidate = os.path.join(directory, exe)
+            if os.path.isfile(candidate):
+                os.environ["PATH"] = directory + os.pathsep + os.environ.get("PATH", "")
+                return "deno"
     for name in ("deno", "node"):
         if shutil.which(name):
             return name

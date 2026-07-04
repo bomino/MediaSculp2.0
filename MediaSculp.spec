@@ -1,5 +1,7 @@
 # PyInstaller spec for the MediaSculp desktop app (one-folder build).
 # Build with:  python -m PyInstaller --noconfirm MediaSculp.spec
+import os
+
 from PyInstaller.utils.hooks import collect_all
 
 datas = [
@@ -7,6 +9,11 @@ datas = [
     ("static", "static"),
     ("icons", "icons"),
 ]
+
+# Ship a vendored JS runtime (Deno) if one has been placed in runtimes/ — the CI
+# build downloads it. yt-dlp needs it for YouTube's nsig / PO-token challenges.
+if os.path.isdir("runtimes"):
+    datas.append(("runtimes", "runtimes"))
 binaries = []
 hiddenimports = ["waitress", "clr"]
 

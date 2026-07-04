@@ -114,11 +114,12 @@ pip install -r requirements-build.txt
 python build_desktop.py
 ```
 
-This produces `dist/MediaSculp/` containing `MediaSculp.exe` (Windows). ffmpeg and yt-dlp are bundled, so nothing else needs installing. Notes:
+This produces `dist/MediaSculp/` containing `MediaSculp.exe` (Windows). ffmpeg, yt-dlp, and a JS runtime are bundled, so nothing else needs installing. Notes:
 
 - **Per-OS build.** Build on the OS you want to ship for — a Windows `.exe` won't run on macOS/Linux. The GitHub Actions workflow `build-desktop.yml` builds the Windows bundle on a tag push (`v*`) or manual run and uploads it as an artifact.
-- **User data** (downloads, clips, history, log) lives in a `MediaSculp` folder in the user's home directory, not next to the read-only bundle.
-- **yt-dlp stays current.** A frozen copy can't be `pip`-upgraded, so on launch the app quietly downloads the latest yt-dlp into a user-writable folder that shadows the bundled copy on the next start — this keeps it working as YouTube changes.
+- **Bundled JS runtime.** The CI build downloads **Deno** into `runtimes/` and bundles it, so the packaged app can solve YouTube's challenges without the user installing Node. For a local build, drop a `deno` (or `deno.exe`) into `runtimes/` before running `build_desktop.py` — otherwise it falls back to a `node`/`deno` on the machine's `PATH`.
+- **User data** (downloads, clips, history, log) lives in a `MediaSculp` folder in the user's home directory, not next to the read-only bundle. A drop-in `cookies.txt` there is auto-detected.
+- **yt-dlp stays current.** A frozen copy can't be `pip`-upgraded, so on launch the app quietly downloads the latest yt-dlp (nightly, by default for the packaged app) into a user-writable folder that shadows the bundled copy on the next start — this keeps it working as YouTube changes.
 
 ## Usage
 
