@@ -3,6 +3,7 @@ import os
 from flask import Flask, flash, redirect, render_template, request, url_for
 from flask_wtf.csrf import CSRFProtect
 
+import db
 from config import Config
 
 csrf = CSRFProtect()
@@ -14,6 +15,9 @@ def create_app(config_class=Config):
 
     os.makedirs(app.config["DOWNLOAD_FOLDER"], exist_ok=True)
     os.makedirs(app.config["TRIMMED_FOLDER"], exist_ok=True)
+
+    db.init_db(app.config["DATABASE"])
+    db.mark_interrupted(app.config["DATABASE"])
 
     csrf.init_app(app)
 

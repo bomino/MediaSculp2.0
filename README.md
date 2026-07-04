@@ -14,6 +14,7 @@ It ships with a compact interface that has both light and dark themes.
 - **Trim clips** — pick a downloaded video and cut a clip by start time and duration.
 - **Upload** local video files to trim them.
 - **Manage files** — preview, download, and delete files; instant search (Ctrl+K) and at-a-glance counts.
+- **Download history** — every download is recorded to a small SQLite database, so a **History** page lets you search, re-download, and review past downloads even across restarts.
 - **Light + dark theme** — follows your OS setting, with a toggle in the top bar.
 
 ## Requirements
@@ -58,6 +59,7 @@ Copy `.env.example` to `.env` and adjust. Everything is optional with safe defau
 | `FLASK_DEBUG` | `0` | Enables the Werkzeug debugger. **Never enable when exposed** — it allows remote code execution. |
 | `DOWNLOAD_FOLDER` | `./downloads` | Where downloads are stored. |
 | `TRIMMED_FOLDER` | `./trimmed_videos` | Where trimmed clips are stored. |
+| `DATABASE` | `./mediasculp.db` | SQLite file backing the download history. |
 | `FFMPEG_LOCATION` | auto | Path to an ffmpeg binary; blank = PATH, then the bundled binary. |
 | `MAX_UPLOAD_BYTES` | `524288000` (500 MB) | Maximum upload size. |
 | `MAX_CONCURRENT_DOWNLOADS` | `3` | How many downloads run at once; extras queue. |
@@ -112,6 +114,7 @@ MediaSculp2.0/
 ├── serve.py                  # Production entrypoint (waitress)
 ├── config.py                 # Env-driven configuration (Config / TestConfig)
 ├── utils.py                  # safe path resolution, unique naming, file listing
+├── db.py                     # SQLite download history (stdlib sqlite3)
 ├── routes/
 │   ├── main.py               # Download (background jobs), trim, upload, status/cancel
 │   └── downloads.py          # File listing, download, delete endpoints
@@ -119,7 +122,8 @@ MediaSculp2.0/
 │   ├── base.html             # Layout, navbar + theme toggle, slim footer
 │   ├── index.html            # Home: download / trim / upload tabs
 │   ├── downloads.html        # Downloads manager
-│   └── trimmed_videos.html   # Trimmed videos manager
+│   ├── trimmed_videos.html   # Trimmed videos manager
+│   └── history.html          # Download history
 ├── static/
 │   ├── styles.css            # Token-based light/dark design system
 │   ├── file-manager.js       # Shared delete/search/stats logic (FileManager)
@@ -146,6 +150,8 @@ MediaSculp2.0/
 | POST | `/` | Start a download job or run a trim |
 | GET | `/download_status/<job_id>` | JSON status/progress of a download job |
 | POST | `/cancel_download/<job_id>` | Cancel a running download |
+| GET | `/history` | Download history (searchable) |
+| POST | `/redownload/<id>` | Re-download a history entry |
 | GET/POST | `/upload` | GET redirects home; POST uploads a file |
 | GET | `/downloads` | Downloads manager |
 | GET | `/trimmed_videos` | Trimmed manager |

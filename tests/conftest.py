@@ -14,6 +14,7 @@ def app(tmp_path):
     class Cfg(TestConfig):
         DOWNLOAD_FOLDER = str(tmp_path / "downloads")
         TRIMMED_FOLDER = str(tmp_path / "trimmed_videos")
+        DATABASE = str(tmp_path / "test.db")
 
     return create_app(Cfg)
 

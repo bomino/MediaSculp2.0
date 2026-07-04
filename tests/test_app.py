@@ -100,6 +100,7 @@ def test_bulk_delete_csrf_enforced(tmp_path):
         SECRET_KEY = "unit-test"
         DOWNLOAD_FOLDER = str(tmp_path / "d")
         TRIMMED_FOLDER = str(tmp_path / "t")
+        DATABASE = str(tmp_path / "db.sqlite")
 
     client = create_app(Cfg).test_client()
     response = client.post("/delete_files", json={"filenames": ["x.mp4"]})
@@ -116,6 +117,7 @@ def test_csrf_enforced_when_enabled(tmp_path):
         SECRET_KEY = "unit-test"
         DOWNLOAD_FOLDER = str(tmp_path / "d")
         TRIMMED_FOLDER = str(tmp_path / "t")
+        DATABASE = str(tmp_path / "db.sqlite")
 
     client = create_app(Cfg).test_client()
     response = client.post("/delete_file/whatever.mp4")
@@ -278,6 +280,7 @@ def test_disk_guard_blocks_download_when_space_low(tmp_path):
     class Cfg(TestConfig):
         DOWNLOAD_FOLDER = str(tmp_path / "d")
         TRIMMED_FOLDER = str(tmp_path / "t")
+        DATABASE = str(tmp_path / "db.sqlite")
         MIN_FREE_BYTES = 10 ** 18  # larger than any real disk
 
     client = create_app(Cfg).test_client()
@@ -287,6 +290,55 @@ def test_disk_guard_blocks_download_when_space_low(tmp_path):
         follow_redirects=True,
     )
     assert b"Not enough free disk space" in response.data
+
+
+def test_db_records_and_mark_interrupted(tmp_path):
+    import db
+
+    path = str(tmp_path / "h.db")
+    db.init_db(path)
+    db.insert_download(path, "a", "u1", "mp3", "t1")
+    db.insert_download(path, "b", "u2", "mp4", "t2")
+    db.finish_download(path, "a", "done", "Title A", None, "a.mp3", 10, None, "t3")
+
+    assert len(db.list_downloads(path)) == 2
+    assert db.get_download(path, "a")["status"] == "done"
+
+    db.mark_interrupted(path)
+    assert db.get_download(path, "b")["status"] == "interrupted"
+    assert db.get_download(path, "a")["status"] == "done"  # terminal rows untouched
+
+    assert len(db.list_downloads(path, "Title A")) == 1
+    assert len(db.list_downloads(path, "u2")) == 1
+
+
+def test_history_page_lists_recorded_downloads(client, app):
+    import db
+
+    path = app.config["DATABASE"]
+    db.insert_download(path, "job1", "https://example.com/v", "mp3", "2026-07-04T10:00")
+    db.finish_download(
+        path, "job1", "done", "My Song", None, "My Song.mp3", 12345, None, "2026-07-04T10:01"
+    )
+
+    html = client.get("/history").data
+    assert b"My Song" in html
+    assert b"DONE" in html
+
+
+def test_redownload_starts_job(client, app, monkeypatch):
+    import db
+    import routes.main as main
+
+    monkeypatch.setattr(main, "_run_download", lambda *a, **k: None)
+    path = app.config["DATABASE"]
+    db.insert_download(path, "jobX", "https://example.com/v", "mp3", "2026-07-04T10:00")
+    db.finish_download(path, "jobX", "done", "T", None, None, None, None, "2026-07-04T10:01")
+
+    response = client.post("/redownload/jobX")
+    assert response.status_code == 302
+    assert "job=" in response.headers["Location"]
+    assert client.post("/redownload/does-not-exist").status_code == 302
 
 
 def test_trim_missing_fields_flashes(client):

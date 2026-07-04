@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}History — MediaSculp{% endblock %}
+
+{% block content %}
+<div class="hero-section">
+    <h1 class="hero-title"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i> Download history</h1>
+    <p class="hero-subtitle">Everything you've downloaded, most recent first.</p>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            {% set alert_class = 'danger' if category == 'danger' else 'success' %}
+            <div class="alert alert-{{ alert_class }} alert-dismissible fade show mt-4" role="alert">
+                <i class="fas fa-{{ 'exclamation-circle' if alert_class == 'danger' else 'check-circle' }}" aria-hidden="true"></i>
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="input-group">
+            <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
+            <input type="text" name="q" class="form-control" placeholder="Search history…" value="{{ query }}" aria-label="Search history">
+        </form>
+    </div>
+</div>
+
+{% if rows %}
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 42%;"><i class="fas fa-file"></i> Title</th>
+                        <th style="width: 10%;"><i class="fas fa-info-circle"></i> Format</th>
+                        <th style="width: 14%;"><i class="fas fa-circle-dot"></i> Status</th>
+                        <th style="width: 16%;"><i class="fas fa-clock"></i> When</th>
+                        <th style="width: 18%;"><i class="fas fa-cogs"></i> Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    {% set st = row.status %}
+                    <tr>
+                        <td>
+                            <div class="text-truncate js-filename" style="max-width: 380px;" title="{{ row.url }}">
+                                {{ row.title or row.url }}
+                            </div>
+                        </td>
+                        <td><span class="badge badge-primary">{{ (row.format or '')|upper }}</span></td>
+                        <td>
+                            {% if st == 'done' %}<span class="badge badge-success">DONE</span>
+                            {% elif st == 'error' %}<span class="badge badge-danger">ERROR</span>
+                            {% elif st == 'cancelled' %}<span class="badge badge-warning">CANCELLED</span>
+                            {% elif st == 'interrupted' %}<span class="badge badge-warning">INTERRUPTED</span>
+                            {% else %}<span class="badge badge-secondary">{{ st|upper }}</span>{% endif %}
+                        </td>
+                        <td class="text-muted">{{ (row.finished_at or row.created_at or '')[:16]|replace('T', ' ') }}</td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                {% if row.exists %}
+                                <a href="{{ url_for('downloads.download_file', filename=row.file) }}" class="btn btn-sm btn-primary" title="Download" aria-label="Download {{ row.file }}">
+                                    <i class="fas fa-download" aria-hidden="true"></i>
+                                </a>
+                                {% endif %}
+                                <form method="post" action="{{ url_for('main.redownload', download_id=row.id) }}" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-secondary" title="Re-download">
+                                        <i class="fas fa-rotate-right" aria-hidden="true"></i> Re-download
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body text-center py-5">
+        <i class="fas fa-clock-rotate-left" style="font-size: 3rem;" aria-hidden="true"></i>
+        <h3 class="mt-3">No history yet</h3>
+        <p class="text-muted">Downloads you start will show up here.</p>
+        <a href="/" class="btn btn-primary"><i class="fas fa-download"></i> Start a download</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

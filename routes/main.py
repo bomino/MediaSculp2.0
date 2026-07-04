@@ -19,6 +19,7 @@ from flask import (
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from werkzeug.utils import secure_filename
 
+import db
 from utils import list_files, resolve_within, unique_name
 
 main_bp = Blueprint("main", __name__)
@@ -182,7 +183,40 @@ def _make_progress_hook(job_id):
     return hook
 
 
-def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, quality, playlist_wanted, limit, max_concurrent, logger):
+def _make_pp_hook(job_id):
+    def hook(data):
+        info = data.get("info_dict") or {}
+        path = info.get("filepath")
+        if path:
+            _update_job(job_id, final_file=path)
+
+    return hook
+
+
+def _record(db_path, job_id, status, error):
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        title = job.get("current_title") if job else None
+        items = job.get("total") if job else None
+        final_file = job.get("final_file") if job else None
+    file_name = None
+    size = None
+    if final_file and os.path.isfile(final_file):
+        file_name = os.path.basename(final_file)
+        try:
+            size = os.path.getsize(final_file)
+        except OSError:
+            size = None
+    try:
+        db.finish_download(
+            db_path, job_id, status, title or None, items, file_name, size, error,
+            datetime.now().isoformat(),
+        )
+    except Exception:
+        pass  # history is best-effort; never fail a download over it
+
+
+def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, quality, playlist_wanted, limit, max_concurrent, db_path, logger):
     semaphore = _get_semaphore(max_concurrent)
     semaphore.acquire()
     try:
@@ -191,11 +225,13 @@ def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, 
             cancelled = job.get("cancel") if job else True
         if cancelled:
             _update_job(job_id, status="cancelled", message="Download cancelled.")
+            _record(db_path, job_id, "cancelled", None)
             return
         _update_job(job_id, status="running", message="Starting…")
 
         opts = _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit)
         opts["progress_hooks"] = [_make_progress_hook(job_id)]
+        opts["postprocessor_hooks"] = [_make_pp_hook(job_id)]
         opts["quiet"] = True
         opts["no_warnings"] = True
         try:
@@ -203,6 +239,7 @@ def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, 
                 ydl.download([url])
         except yt_dlp.utils.DownloadCancelled:
             _update_job(job_id, status="cancelled", message="Download cancelled.")
+            _record(db_path, job_id, "cancelled", None)
             return
         except Exception:
             logger.exception("Download failed for %s", url)
@@ -211,6 +248,7 @@ def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, 
                 status="error",
                 message="Download failed. Check that the URL is valid and try again.",
             )
+            _record(db_path, job_id, "error", "Download failed.")
             return
 
         with _jobs_lock:
@@ -221,23 +259,17 @@ def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, 
                 count = job.get("total")
                 suffix = f" {count} item(s)." if count else ""
                 job["message"] = f"Download completed in {format_choice.upper()} format.{suffix}"
+        _record(db_path, job_id, "done", None)
     finally:
         semaphore.release()
 
 
-def _start_download():
-    url = (request.form.get("url") or "").strip()
-    if not url:
-        flash("Please enter a video URL.", "danger")
-        return None
-
-    format_choice = request.form.get("format", "mp3")
-    quality = request.form.get("quality")
-    playlist_wanted = bool(request.form.get("playlist"))
-    limit = _parse_limit(request.form.get("limit"))
+def _launch_download(url, format_choice, quality, playlist_wanted, limit):
     download_folder = current_app.config["DOWNLOAD_FOLDER"]
     ffmpeg_location = current_app.config.get("FFMPEG_LOCATION")
     max_concurrent = current_app.config["MAX_CONCURRENT_DOWNLOADS"]
+    db_path = current_app.config["DATABASE"]
+    logger = current_app.logger
 
     min_free = current_app.config.get("MIN_FREE_BYTES", 0)
     if min_free:
@@ -249,9 +281,8 @@ def _start_download():
             flash("Not enough free disk space to start this download.", "danger")
             return None
 
-    logger = current_app.logger
-
     job_id = _create_job(format_choice)
+    db.insert_download(db_path, job_id, url, format_choice, datetime.now().isoformat())
     thread = threading.Thread(
         target=_run_download,
         args=(
@@ -264,12 +295,25 @@ def _start_download():
             playlist_wanted,
             limit,
             max_concurrent,
+            db_path,
             logger,
         ),
         daemon=True,
     )
     thread.start()
     return job_id
+
+
+def _start_download():
+    url = (request.form.get("url") or "").strip()
+    if not url:
+        flash("Please enter a video URL.", "danger")
+        return None
+    format_choice = request.form.get("format", "mp3")
+    quality = request.form.get("quality")
+    playlist_wanted = bool(request.form.get("playlist"))
+    limit = _parse_limit(request.form.get("limit"))
+    return _launch_download(url, format_choice, quality, playlist_wanted, limit)
 
 
 def _handle_trim(download_folder, trimmed_folder):
@@ -337,6 +381,31 @@ def cancel_download(job_id):
             job["cancel"] = True
             job["message"] = "Cancelling…"
         return jsonify({"success": True}), 200
+
+
+@main_bp.route("/history")
+def history():
+    query = request.args.get("q")
+    rows = db.list_downloads(current_app.config["DATABASE"], query)
+    download_folder = current_app.config["DOWNLOAD_FOLDER"]
+    for row in rows:
+        row["exists"] = bool(row.get("file")) and os.path.isfile(
+            os.path.join(download_folder, row["file"])
+        )
+    return render_template("history.html", rows=rows, query=query or "")
+
+
+@main_bp.route("/redownload/<download_id>", methods=["POST"])
+def redownload(download_id):
+    row = db.get_download(current_app.config["DATABASE"], download_id)
+    if not row:
+        flash("That download was not found in history.", "danger")
+        return redirect(url_for("main.history"))
+    job_id = _launch_download(row["url"], row.get("format") or "mp3", None, False, None)
+    if job_id:
+        flash("Re-download started.", "success")
+        return redirect(url_for("main.index", job=job_id))
+    return redirect(url_for("main.history"))
 
 
 @main_bp.route("/upload", methods=["GET", "POST"])

@@ -43,6 +43,9 @@ downloads/*
 trimmed_videos/*
 !trimmed_videos/.gitkeep
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
 *.sqlite
 *.log
 

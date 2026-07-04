@@ -110,7 +110,7 @@ source venv/bin/activate  # Linux/Mac
 
 - FFmpeg is resolved from `PATH` (or `FFMPEG_LOCATION`); no hardcoded path
 - Media files stored in project-relative directories (created automatically by `create_app`)
-- No database: the app is stateless and stores only files on disk
+- SQLite download **history** at `DATABASE` (default `mediasculp.db`), managed by `db.py`; rows are inserted when a download starts and updated on finish, and stale `running`/`queued` rows are marked `interrupted` at startup. The `/history` page supports search + re-download. Otherwise state is files on disk.
 
 ## Custom Modal Implementation
 

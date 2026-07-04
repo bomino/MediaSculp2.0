@@ -8,6 +8,8 @@ tests/
 downloads/
 trimmed_videos/
 *.db
+*.db-wal
+*.db-shm
 *.log
 .env
 .playwright-mcp/

@@ -42,6 +42,9 @@ class Config:
     DOWNLOAD_FOLDER = os.environ.get("DOWNLOAD_FOLDER") or os.path.join(BASE_DIR, "downloads")
     TRIMMED_FOLDER = os.environ.get("TRIMMED_FOLDER") or os.path.join(BASE_DIR, "trimmed_videos")
 
+    # SQLite file backing the download history.
+    DATABASE = os.environ.get("DATABASE") or os.path.join(BASE_DIR, "mediasculp.db")
+
     # Path to the ffmpeg binary. Falls back to PATH, then the imageio-ffmpeg
     # bundled binary, so downloads work without a separate ffmpeg install.
     FFMPEG_LOCATION = _resolve_ffmpeg()

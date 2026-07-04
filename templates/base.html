@@ -74,6 +74,11 @@
                             <i class="fas fa-cut"></i> Trimmed
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/history' %}active{% endif %}" href="{{ url_for('main.history') }}">
+                            <i class="fas fa-clock-rotate-left"></i> History
+                        </a>
+                    </li>
                     <li class="nav-item d-flex align-items-center ms-lg-1 mt-2 mt-lg-0">
                         <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark theme" title="Toggle theme">
                             <i class="fas fa-moon" aria-hidden="true"></i>

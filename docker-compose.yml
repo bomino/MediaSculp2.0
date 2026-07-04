@@ -8,6 +8,8 @@ services:
       - ./trimmed_videos:/app/trimmed_videos
     environment:
       - FLASK_DEBUG=0
+      # Keep the history DB on the downloads volume so it survives rebuilds.
+      - DATABASE=/app/downloads/.mediasculp.db
       # Set a fixed SECRET_KEY so sessions/CSRF tokens survive a restart:
       # - SECRET_KEY=replace-with-a-random-value
       # Tune how many downloads run at once:
