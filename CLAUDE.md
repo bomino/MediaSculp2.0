@@ -49,6 +49,13 @@ python serve.py             # production server (waitress) without Docker
 ```
 `app.py` is the dev server; `serve.py` (waitress, `Dockerfile`) is production. Run a **single instance** — the in-memory job registry/semaphore are not shared across processes.
 
+### Desktop app / standalone build
+```bash
+pip install -r requirements-desktop.txt && python desktop.py   # native window (pywebview + waitress)
+pip install -r requirements-build.txt   && python build_desktop.py  # double-click bundle → dist/MediaSculp/
+```
+`desktop.py` runs waitress in a thread inside a pywebview window (set `MEDIASCULP_SERVER_ONLY=1` to serve headless; an unset `PORT` auto-picks a free one). `build_desktop.py` + `MediaSculp.spec` (PyInstaller) produce a frozen Windows `.exe` (CI: `.github/workflows/build-desktop.yml`). When frozen (`sys.frozen`): templates/static resolve from `sys._MEIPASS`, user data (`DATA_ROOT` in `config.py`) moves to `~/MediaSculp`, stdout/stderr go to `~/MediaSculp/mediasculp.log`, and `ytdlp_updater.py` downloads the latest yt-dlp into a user vendor dir that `ensure_on_path()` shadows in on the next launch (a bundled yt-dlp can't be pip-upgraded).
+
 ### Installing Dependencies
 ```bash
 pip install -r requirements.txt        # runtime

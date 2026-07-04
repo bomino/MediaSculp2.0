@@ -98,7 +98,22 @@ pip install -r requirements-desktop.txt
 python desktop.py
 ```
 
-This adds [pywebview](https://pywebview.flowrl.com/), which uses the platform's built-in web view (WebView2 on Windows, WebKitGTK on Linux, WebKit on macOS). Set `HOST`/`PORT` to change the bind address.
+This adds [pywebview](https://pywebview.flowrl.com/), which uses the platform's built-in web view (WebView2 on Windows, WebKitGTK on Linux, WebKit on macOS). Set `HOST`/`PORT` to change the bind address (a free port is chosen automatically if `PORT` is unset).
+
+### Build a double-click app (no Python needed)
+
+To hand a non-technical person a single icon they can double-click — no terminal, no Python — build a standalone bundle with [PyInstaller](https://pyinstaller.org/):
+
+```bash
+pip install -r requirements-build.txt
+python build_desktop.py
+```
+
+This produces `dist/MediaSculp/` containing `MediaSculp.exe` (Windows). ffmpeg and yt-dlp are bundled, so nothing else needs installing. Notes:
+
+- **Per-OS build.** Build on the OS you want to ship for — a Windows `.exe` won't run on macOS/Linux. The GitHub Actions workflow `build-desktop.yml` builds the Windows bundle on a tag push (`v*`) or manual run and uploads it as an artifact.
+- **User data** (downloads, clips, history, log) lives in a `MediaSculp` folder in the user's home directory, not next to the read-only bundle.
+- **yt-dlp stays current.** A frozen copy can't be `pip`-upgraded, so on launch the app quietly downloads the latest yt-dlp into a user-writable folder that shadows the bundled copy on the next start — this keeps it working as YouTube changes.
 
 ## Usage
 
@@ -128,6 +143,9 @@ MediaSculp2.0/
 ├── app.py                    # App factory (create_app), CSRF, error handlers, dev entry
 ├── serve.py                  # Production entrypoint (waitress)
 ├── desktop.py                # Desktop-app entrypoint (waitress + pywebview)
+├── build_desktop.py          # Builds the standalone bundle (PyInstaller)
+├── MediaSculp.spec           # PyInstaller spec (data files, hidden imports)
+├── ytdlp_updater.py          # Keeps a frozen build's yt-dlp current
 ├── config.py                 # Env-driven configuration (Config / TestConfig)
 ├── utils.py                  # safe path resolution, unique naming, file listing
 ├── db.py                     # SQLite download history (stdlib sqlite3)
@@ -152,6 +170,7 @@ MediaSculp2.0/
 ├── requirements.txt          # Runtime dependencies
 ├── requirements-dev.txt      # Runtime + pytest
 ├── requirements-desktop.txt  # Runtime + pywebview (desktop app)
+├── requirements-build.txt    # Desktop deps + PyInstaller (standalone build)
 ├── Dockerfile                # Container image (waitress + ffmpeg)
 ├── docker-compose.yml        # One-command Docker run
 ├── .env.example              # Configuration template

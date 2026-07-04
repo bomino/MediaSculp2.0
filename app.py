@@ -1,16 +1,35 @@
 import os
+import sys
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import CSRFProtect
 
 import db
+import ytdlp_updater
 from config import Config
 
 csrf = CSRFProtect()
 
 
+def _resource_root():
+    """Where bundled templates/static live — the PyInstaller unpack dir when
+    frozen, otherwise this file's directory."""
+    if getattr(sys, "frozen", False):
+        return sys._MEIPASS
+    return os.path.abspath(os.path.dirname(__file__))
+
+
 def create_app(config_class=Config):
-    app = Flask(__name__)
+    # A downloaded yt-dlp (vendor dir) must shadow any bundled copy before the
+    # routes import yt-dlp, so this has to run first.
+    ytdlp_updater.ensure_on_path()
+
+    root = _resource_root()
+    app = Flask(
+        __name__,
+        template_folder=os.path.join(root, "templates"),
+        static_folder=os.path.join(root, "static"),
+    )
     app.config.from_object(config_class)
 
     os.makedirs(app.config["DOWNLOAD_FOLDER"], exist_ok=True)
@@ -71,12 +90,24 @@ def _ytdlp_startup(app):
     try:
         import yt_dlp
 
-        print(f" * yt-dlp {yt_dlp.version.__version__}")
+        current = yt_dlp.version.__version__
+        print(f" * yt-dlp {current}")
     except Exception:
         return
-    if app.config.get("AUTO_UPDATE_YTDLP"):
+
+    if getattr(sys, "frozen", False):
+        # A bundled yt-dlp can't be pip-upgraded, so refresh a user-writable
+        # copy in the background (loaded on the next launch) to avoid rot.
+        import threading
+
+        def refresh():
+            new_version = ytdlp_updater.update_ytdlp(current)
+            if new_version:
+                print(f" * yt-dlp updated to {new_version}; restart to load it.")
+
+        threading.Thread(target=refresh, daemon=True).start()
+    elif app.config.get("AUTO_UPDATE_YTDLP"):
         import subprocess
-        import sys
 
         try:
             print(" * AUTO_UPDATE_YTDLP set — running pip install -U yt-dlp")

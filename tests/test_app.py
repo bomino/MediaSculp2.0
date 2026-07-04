@@ -431,6 +431,32 @@ def test_downloads_stream_first_frame(app):
         assert "jobs" in payload
 
 
+def test_ytdlp_updater_normalizes_versions():
+    from ytdlp_updater import _normalize
+
+    assert _normalize("2026.06.09") == _normalize("2026.6.9")
+    assert _normalize("2026.06.09") != _normalize("2026.6.10")
+
+
+def test_ytdlp_updater_ensure_on_path(tmp_path, monkeypatch):
+    import sys
+
+    import ytdlp_updater
+
+    vendor = tmp_path / "vendor"
+    pkg = vendor / "yt_dlp"
+    pkg.mkdir(parents=True)
+    (pkg / "version.py").write_text("__version__ = '9999.1.1'\n")
+    monkeypatch.setattr(ytdlp_updater, "vendor_dir", lambda: str(vendor))
+
+    try:
+        ytdlp_updater.ensure_on_path()
+        assert str(vendor) == sys.path[0]
+    finally:
+        if str(vendor) in sys.path:
+            sys.path.remove(str(vendor))
+
+
 def _run_download_with_fake_ydl(app, monkeypatch, fake_cls):
     import routes.main as main
 

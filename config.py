@@ -1,6 +1,7 @@
 import os
 import secrets
 import shutil
+import sys
 
 try:
     from dotenv import load_dotenv
@@ -10,6 +11,14 @@ except ImportError:
     pass
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+# A frozen (packaged) app can't write next to its read-only bundle, so its
+# downloads, clips and history default to a MediaSculp folder in the user's
+# home directory instead. Environment overrides still win.
+if getattr(sys, "frozen", False):
+    DATA_ROOT = os.path.join(os.path.expanduser("~"), "MediaSculp")
+else:
+    DATA_ROOT = BASE_DIR
 
 
 def _env_bool(name, default=False):
@@ -39,11 +48,11 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
     DEBUG = _env_bool("FLASK_DEBUG", False)
 
-    DOWNLOAD_FOLDER = os.environ.get("DOWNLOAD_FOLDER") or os.path.join(BASE_DIR, "downloads")
-    TRIMMED_FOLDER = os.environ.get("TRIMMED_FOLDER") or os.path.join(BASE_DIR, "trimmed_videos")
+    DOWNLOAD_FOLDER = os.environ.get("DOWNLOAD_FOLDER") or os.path.join(DATA_ROOT, "downloads")
+    TRIMMED_FOLDER = os.environ.get("TRIMMED_FOLDER") or os.path.join(DATA_ROOT, "trimmed_videos")
 
     # SQLite file backing the download history.
-    DATABASE = os.environ.get("DATABASE") or os.path.join(BASE_DIR, "mediasculp.db")
+    DATABASE = os.environ.get("DATABASE") or os.path.join(DATA_ROOT, "mediasculp.db")
 
     # Path to the ffmpeg binary. Falls back to PATH, then the imageio-ffmpeg
     # bundled binary, so downloads work without a separate ffmpeg install.
