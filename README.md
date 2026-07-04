@@ -10,7 +10,7 @@ It ships with a compact interface that has both light and dark themes.
 
 - **Download audio or video** from any site yt-dlp supports, with a format picker (MP3, WAV, OGG, MP4) and quality/bitrate selection.
 - **Playlists** — download a whole playlist, or cap it to the first N items.
-- **Background downloads** — downloads run in the background with a live progress bar and a **Cancel** button, so a long playlist never freezes the page. Downloaded video IDs are recorded (yt-dlp `download_archive`) so re-runs resume rather than re-download.
+- **Background downloads** — downloads run in the background and appear in an **Active downloads** panel (on every page) with per-job progress and a **Cancel** button, so a long playlist never freezes the page. Multiple downloads run in parallel up to a configurable limit; the rest queue. Downloaded video IDs are recorded (yt-dlp `download_archive`) so re-runs resume rather than re-download.
 - **Trim clips** — pick a downloaded video and cut a clip by start time and duration.
 - **Upload** local video files to trim them.
 - **Manage files** — preview, download, and delete files; instant search (Ctrl+K) and at-a-glance counts.
@@ -60,6 +60,9 @@ Copy `.env.example` to `.env` and adjust. Everything is optional with safe defau
 | `TRIMMED_FOLDER` | `./trimmed_videos` | Where trimmed clips are stored. |
 | `FFMPEG_LOCATION` | auto | Path to an ffmpeg binary; blank = PATH, then the bundled binary. |
 | `MAX_UPLOAD_BYTES` | `524288000` (500 MB) | Maximum upload size. |
+| `MAX_CONCURRENT_DOWNLOADS` | `3` | How many downloads run at once; extras queue. |
+| `MIN_FREE_BYTES` | `209715200` (200 MB) | Refuse to start a download below this free space (0 disables). |
+| `AUTO_UPDATE_YTDLP` | `0` | If `1`, run `pip install -U yt-dlp` at startup (restart to load). |
 | `HOST` / `PORT` | `127.0.0.1` / `5000` | Bind address and port. Read by `python app.py` directly (not `config.py`). |
 
 `SECRET_KEY`, `FLASK_DEBUG`, the folder paths, `FFMPEG_LOCATION`, and `MAX_UPLOAD_BYTES` are read by `config.py` at startup; `HOST`/`PORT` are read by the `python app.py` entrypoint and only apply when running the dev server that way.
@@ -147,7 +150,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-The suite uses Flask's test client and does not hit the network (download jobs are stubbed), covering routing, CSRF enforcement, path-traversal rejection, upload/trim validation, and the format/quality helpers.
+The suite uses Flask's test client and does not hit the network (download jobs are stubbed), covering routing, CSRF enforcement, path-traversal rejection, upload/trim validation, and the format/quality helpers. GitHub Actions (`.github/workflows/ci.yml`) runs it on every push and pull request.
 
 ## Security notes
 

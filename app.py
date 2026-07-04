@@ -24,7 +24,32 @@ def create_app(config_class=Config):
     app.register_blueprint(downloads_bp)
 
     register_error_handlers(app)
+    if not app.config.get("TESTING"):
+        _ytdlp_startup(app)
     return app
+
+
+def _ytdlp_startup(app):
+    try:
+        import yt_dlp
+
+        print(f" * yt-dlp {yt_dlp.version.__version__}")
+    except Exception:
+        return
+    if app.config.get("AUTO_UPDATE_YTDLP"):
+        import subprocess
+        import sys
+
+        try:
+            print(" * AUTO_UPDATE_YTDLP set — running pip install -U yt-dlp")
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-U", "--quiet", "yt-dlp"],
+                check=False,
+                timeout=180,
+            )
+            print(" * yt-dlp update attempted; restart to load the new version.")
+        except Exception:
+            app.logger.exception("yt-dlp auto-update failed")
 
 
 def register_error_handlers(app):

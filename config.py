@@ -51,6 +51,13 @@ class Config:
     # How many downloads may run at once; the rest are queued.
     MAX_CONCURRENT_DOWNLOADS = int(os.environ.get("MAX_CONCURRENT_DOWNLOADS", 3))
 
+    # Refuse to start a download when free space on the download folder is below
+    # this (bytes). Default 200 MB; set 0 to disable the check.
+    MIN_FREE_BYTES = int(os.environ.get("MIN_FREE_BYTES", 200 * 1024 * 1024))
+
+    # When true, attempt `pip install -U yt-dlp` at startup (needs a restart to load).
+    AUTO_UPDATE_YTDLP = _env_bool("AUTO_UPDATE_YTDLP", False)
+
     ALLOWED_VIDEO_EXTENSIONS = {"mp4", "mov", "avi", "mkv"}
     ALLOWED_AUDIO_FORMATS = {"mp3", "wav", "ogg"}
 

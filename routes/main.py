@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import threading
 import uuid
 from datetime import datetime
@@ -237,6 +238,17 @@ def _start_download():
     download_folder = current_app.config["DOWNLOAD_FOLDER"]
     ffmpeg_location = current_app.config.get("FFMPEG_LOCATION")
     max_concurrent = current_app.config["MAX_CONCURRENT_DOWNLOADS"]
+
+    min_free = current_app.config.get("MIN_FREE_BYTES", 0)
+    if min_free:
+        try:
+            free = shutil.disk_usage(download_folder).free
+        except OSError:
+            free = None
+        if free is not None and free < min_free:
+            flash("Not enough free disk space to start this download.", "danger")
+            return None
+
     logger = current_app.logger
 
     job_id = _create_job(format_choice)

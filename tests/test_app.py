@@ -1,7 +1,7 @@
 import os
 
 from app import create_app
-from config import Config
+from config import Config, TestConfig
 from routes.main import _audio_quality, _video_format
 from utils import list_files, resolve_within, unique_name
 
@@ -272,6 +272,21 @@ def test_downloads_status_lists_jobs(client, monkeypatch):
     job = [j for j in data["jobs"] if j["id"] == job_id][0]
     assert "seq" in job
     assert job["status"] in ("queued", "running")
+
+
+def test_disk_guard_blocks_download_when_space_low(tmp_path):
+    class Cfg(TestConfig):
+        DOWNLOAD_FOLDER = str(tmp_path / "d")
+        TRIMMED_FOLDER = str(tmp_path / "t")
+        MIN_FREE_BYTES = 10 ** 18  # larger than any real disk
+
+    client = create_app(Cfg).test_client()
+    response = client.post(
+        "/",
+        data={"action": "Download Playlist", "url": "https://example.com/v"},
+        follow_redirects=True,
+    )
+    assert b"Not enough free disk space" in response.data
 
 
 def test_trim_missing_fields_flashes(client):

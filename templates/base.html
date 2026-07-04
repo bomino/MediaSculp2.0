@@ -87,6 +87,7 @@
 
     <!-- Main Content -->
     <main class="container">
+        <div id="downloadsPanel" class="downloads-panel" style="display: none;"></div>
         {% block content %}
         {% endblock %}
     </main>
@@ -151,6 +152,8 @@
             });
         })();
     </script>
+
+    <script src="{{ url_for('static', filename='downloads-panel.js') }}"></script>
 
     {% block scripts %}
     {% endblock %}
