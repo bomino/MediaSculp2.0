@@ -1,219 +1,182 @@
-# MediaSculp 2.0 - Professional Media Processing Suite
+# MediaSculp 2.0
 
 ![MediaSculp Logo](static/QidayaLogo-small.png)
 
-MediaSculp 2.0 is an enterprise-grade web application for downloading, processing, and managing video content from 1000+ platforms including YouTube, TikTok, Instagram, and more. Built with Flask and featuring a modern navy blue professional interface, MediaSculp provides a seamless experience for content creators and professionals.
+MediaSculp 2.0 is a local Flask web app for downloading media and trimming clips. It downloads audio or video from the many sites [yt-dlp](https://github.com/yt-dlp/yt-dlp) supports (YouTube, TikTok, and more), and cuts clips with [MoviePy](https://zulko.github.io/moviepy/)/FFmpeg. It's meant to run on your own machine at `http://127.0.0.1:5000`.
 
-**Latest Update (December 2024):** Fixed critical modal freezing issue with custom modal implementation.
+It ships with a compact interface that has both light and dark themes.
 
-## 🎯 Key Features
+## Features
 
-### Core Functionality
-- **Universal Video Downloader:** Download videos from 1000+ platforms using yt-dlp
-- **Multi-Format Support:** Export to MP3, WAV, OGG, MP4, and more
-- **Fast Video Trimming:** Quick clip extraction by start time and duration (keyframe-aligned stream copy)
-- **Batch Processing:** Download entire playlists with a single click
-- **Quality Selection:** Choose from multiple quality options (Best, 1080p, 720p, 480p, etc.)
+- **Download audio or video** from any site yt-dlp supports, with a format picker (MP3, WAV, OGG, MP4) and quality/bitrate selection.
+- **Playlists** — download a whole playlist, or cap it to the first N items.
+- **Background downloads** — downloads run in the background with a live progress bar and a **Cancel** button, so a long playlist never freezes the page. Downloaded video IDs are recorded (yt-dlp `download_archive`) so re-runs resume rather than re-download.
+- **Trim clips** — pick a downloaded video and cut a clip by start time and duration.
+- **Upload** local video files to trim them.
+- **Manage files** — preview, download, and delete files; instant search (Ctrl+K) and at-a-glance counts.
+- **Light + dark theme** — follows your OS setting, with a toggle in the top bar.
 
-### Professional Interface
-- **Enterprise Design:** Navy blue & white color scheme with ultra-compact navigation
-- **Responsive Layout:** Fully responsive Bootstrap 5 interface
-- **Real-time Statistics:** Dynamic file counting and storage monitoring
-- **Advanced Search:** Instant file filtering with keyboard shortcuts (Ctrl+K)
-- **Video Previews:** In-browser video and audio preview capabilities
+## Requirements
 
-## 🚀 Quick Start
+- **Python 3.10 or newer**
+- **FFmpeg** — used for audio extraction and merging. It's resolved automatically from your `PATH`, and falls back to the FFmpeg binary bundled with `imageio-ffmpeg` (a dependency), so a separate install is optional. Set `FFMPEG_LOCATION` to point at a specific binary if you prefer.
+- A modern web browser (Chrome, Firefox, Safari, Edge)
 
-### Prerequisites
-- Python 3.6 or above
-- [FFmpeg](https://ffmpeg.org/download.html) installed and in PATH
-- Modern web browser (Chrome, Firefox, Safari, Edge)
+## Quick start
 
-### Installation
-
-1. **Clone the repository:**
+1. **Clone:**
    ```bash
    git clone https://github.com/bomino/MediaSculp2.0.git
    cd MediaSculp2.0
    ```
 
-2. **Create virtual environment:**
+2. **Create a virtual environment:**
    ```bash
    python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   source venv/bin/activate        # Windows: venv\Scripts\activate
    ```
 
 3. **Install dependencies:**
    ```bash
-   pip install -r requirements.txt
+   pip install -r requirements.txt          # runtime
+   pip install -r requirements-dev.txt      # runtime + pytest (for tests)
    ```
 
-4. **Create required directories:**
-   ```bash
-   mkdir downloads trimmed_videos
-   ```
-
-5. **Run the application:**
+4. **Run it:**
    ```bash
    python app.py
    ```
+   The `downloads/` and `trimmed_videos/` folders are created automatically. Open `http://127.0.0.1:5000`.
 
-6. **Access the application:**
-   Open your browser and navigate to `http://127.0.0.1:5000`
+## Configuration
 
-## 📁 Project Structure
+Copy `.env.example` to `.env` and adjust. Everything is optional with safe defaults.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SECRET_KEY` | random per run | Signs session/flash cookies. Set a fixed value so sessions survive a restart. |
+| `FLASK_DEBUG` | `0` | Enables the Werkzeug debugger. **Never enable when exposed** — it allows remote code execution. |
+| `DOWNLOAD_FOLDER` | `./downloads` | Where downloads are stored. |
+| `TRIMMED_FOLDER` | `./trimmed_videos` | Where trimmed clips are stored. |
+| `FFMPEG_LOCATION` | auto | Path to an ffmpeg binary; blank = PATH, then the bundled binary. |
+| `MAX_UPLOAD_BYTES` | `524288000` (500 MB) | Maximum upload size. |
+| `HOST` / `PORT` | `127.0.0.1` / `5000` | Bind address and port. Read by `python app.py` directly (not `config.py`). |
+
+`SECRET_KEY`, `FLASK_DEBUG`, the folder paths, `FFMPEG_LOCATION`, and `MAX_UPLOAD_BYTES` are read by `config.py` at startup; `HOST`/`PORT` are read by the `python app.py` entrypoint and only apply when running the dev server that way.
+
+## Usage
+
+### Download
+1. Open the **Download** tab.
+2. Paste a link and pick a format (MP3/WAV/OGG or MP4) and quality.
+3. For a playlist URL, optionally set a **Playlist limit** to grab only the first N items.
+4. Click **Start Download**. A progress bar shows real progress (e.g. "Downloading 3/19"); use **Cancel** to stop. Finished files appear on the **Downloads** page.
+
+### Trim
+1. Open the **Trim** tab and pick a downloaded video.
+2. Enter a start time and duration in seconds (decimals allowed, e.g. `5.5`).
+3. Click **Trim Video**; find the clip on the **Trimmed** page.
+
+### Upload
+Open the **Upload** tab to upload a local video (MP4/MOV/AVI/MKV, up to 500 MB), then switch to **Trim**.
+
+### Manage
+The **Downloads** and **Trimmed** pages let you preview, download, and delete files, with instant search (Ctrl+K).
+
+## Project structure
 
 ```
-MediaSculpModal/
-├── app.py                 # Main Flask application
+MediaSculp2.0/
+├── app.py                    # App factory (create_app), CSRF, error handlers, entrypoint
+├── config.py                 # Env-driven configuration (Config / TestConfig)
+├── utils.py                  # safe path resolution, unique naming, file listing
 ├── routes/
-│   ├── main.py           # Core download & trim routes
-│   └── downloads.py      # File management routes
+│   ├── main.py               # Download (background jobs), trim, upload, status/cancel
+│   └── downloads.py          # File listing, download, delete endpoints
 ├── templates/
-│   ├── base.html         # Base template with navbar/footer
-│   ├── index.html        # Home page with tabs
-│   ├── downloads.html    # Downloads manager
-│   └── trimmed_videos.html # Trimmed videos manager
+│   ├── base.html             # Layout, navbar + theme toggle, slim footer
+│   ├── index.html            # Home: download / trim / upload tabs
+│   ├── downloads.html        # Downloads manager
+│   └── trimmed_videos.html   # Trimmed videos manager
 ├── static/
-│   ├── styles.css        # Professional navy theme CSS
-│   └── QidayaLogo-small.png # Application logo
-├── downloads/            # Downloaded files directory
-├── trimmed_videos/       # Processed videos directory
-├── requirements.txt      # Python dependencies
-├── CLAUDE.md            # AI assistant documentation
-└── README.md            # This file
+│   ├── styles.css            # Token-based light/dark design system
+│   ├── file-manager.js       # Shared delete/search/stats logic (FileManager)
+│   └── QidayaLogo-small.png  # Logo
+├── icons/                    # App icon PNGs (72–512 px)
+├── tests/                    # pytest suite (Flask test client)
+├── requirements.txt          # Runtime dependencies
+├── requirements-dev.txt      # Runtime + pytest
+├── .env.example              # Configuration template
+├── downloads/                # Downloaded files (git-ignored)
+├── trimmed_videos/           # Trimmed clips (git-ignored)
+├── CLAUDE.md                 # Guidance for AI assistants
+└── README.md                 # This file
 ```
 
-## 💻 Usage Guide
+## API endpoints
 
-### Downloading Videos
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/` | Home (download / trim / upload) |
+| POST | `/` | Start a download job or run a trim |
+| GET | `/download_status/<job_id>` | JSON status/progress of a download job |
+| POST | `/cancel_download/<job_id>` | Cancel a running download |
+| GET/POST | `/upload` | GET redirects home; POST uploads a file |
+| GET | `/downloads` | Downloads manager |
+| GET | `/trimmed_videos` | Trimmed manager |
+| GET | `/download_file/<filename>` | Download a file |
+| GET | `/download_trimmed/<filename>` | Download a trimmed clip |
+| POST | `/delete_file/<filename>` | Delete a downloaded file |
+| POST | `/delete_trimmed_video/<filename>` | Delete a trimmed clip |
 
-1. Navigate to the **Home** page
-2. Select the **Download** tab
-3. Paste any video URL (YouTube, TikTok, Instagram, etc.)
-4. Choose output format:
-   - **Audio:** MP3, WAV, OGG
-   - **Video:** MP4 with quality selection
-5. Optional: Check "Download entire playlist" for playlist URLs
-6. Click **Start Download**
+Every POST route is CSRF-protected (Flask-WTF); browser requests must include the token.
 
-### Trimming Videos
+## Design
 
-1. Navigate to the **Trim Video** tab
-2. Select a downloaded video from the dropdown
-3. Enter start time (supports decimals, e.g., 5.5 seconds)
-4. Enter duration for the clip
-5. Click **Trim Video**
-6. Find your trimmed video in the **Trimmed** section
+A compact "tool" interface with light and dark themes driven by CSS custom properties (`data-theme` on `<html>`, following `prefers-color-scheme` with a persisted toggle). Single emerald accent, [Geist](https://vercel.com/font) for UI and JetBrains Mono for numbers. Built on Bootstrap 5 (grid, tabs, modals) with Font Awesome icons and a small amount of vanilla JS.
 
-### File Management
+## Tech stack
 
-- **Downloads Page:** View, preview, and delete downloaded files
-- **Trimmed Page:** Manage your edited video clips
-- **Search:** Use Ctrl+K to quickly search files
-- **Preview:** Hover over videos for instant preview
+- **Backend:** Flask, Flask-WTF (CSRF), yt-dlp (downloading), MoviePy + FFmpeg (trimming)
+- **Frontend:** Bootstrap 5, Font Awesome 6, jQuery, custom CSS + vanilla JS
 
-## 🎨 Design System
+## Testing
 
-### Color Palette
-- **Primary Navy:** #0A2540
-- **Accent Blue:** #0066FF
-- **White:** #FFFFFF
-- **Gray Scale:** #F6F8FA to #4B5563
-
-### Key Design Features
-- Ultra-compact 48px navbar
-- Gradient effects and animations
-- Premium card designs with hover effects
-- Professional typography (Inter font)
-- Responsive grid layouts
-- Enterprise-grade footer with newsletter signup
-
-## 🛠️ Technical Stack
-
-### Backend
-- **Flask:** Web framework
-- **yt-dlp:** Video downloading engine
-- **MoviePy:** Video processing and trimming
-- **FFmpeg:** Media codec support
-
-### Frontend
-- **Bootstrap 5:** Responsive framework
-- **Font Awesome 6:** Icon library
-- **Custom CSS:** Navy blue professional theme
-- **JavaScript:** Dynamic UI interactions
-
-## 📋 Requirements
-
-```txt
-Flask==3.0.3
-Flask-WTF==1.3.0
-Werkzeug==3.0.4
-yt-dlp>=2025.6.0        # keep current; stale versions break against YouTube
-moviepy==1.0.3
-python-dotenv==1.2.2
+```bash
+pip install -r requirements-dev.txt
+pytest
 ```
 
-See `requirements.txt` for the full pinned list, and `requirements-dev.txt` to include `pytest`.
+The suite uses Flask's test client and does not hit the network (download jobs are stubbed), covering routing, CSRF enforcement, path-traversal rejection, upload/trim validation, and the format/quality helpers.
 
-## 🔧 Configuration
+## Security notes
 
-### FFmpeg Setup
-Ensure FFmpeg is properly installed:
-- **Windows:** Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH
-- **Mac:** `brew install ffmpeg`
-- **Linux:** `sudo apt-get install ffmpeg`
+This is a single-user app intended for `127.0.0.1`. Keep `FLASK_DEBUG` off and don't expose it to a network without adding authentication — the file-management endpoints act on the local filesystem. CSRF protection is enabled and user-supplied paths are confined with `werkzeug.utils.safe_join`.
 
-### Custom Settings
-Edit `routes/main.py` to customize:
-- Download quality defaults
-- Output formats
-- File naming patterns
-- Processing options
-
-## 🚦 API Endpoints
-
-- `GET /` - Home page with download/trim interface
-- `POST /` - Process download or trim request
-- `GET /downloads` - View downloaded files
-- `GET /trimmed_videos` - View trimmed videos
-- `POST /upload` - Upload a local video file (multipart form)
-- `POST /delete_file/<filename>` - Delete downloaded file (CSRF-protected)
-- `POST /delete_trimmed_video/<filename>` - Delete trimmed video (CSRF-protected)
-- `GET /download_file/<filename>` - Download a downloaded file
-- `GET /download_trimmed/<filename>` - Download trimmed video
-
-## 🤝 Contributing
-
-We welcome contributions! Please follow these steps:
+## Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+2. Create a branch (`git checkout -b feature/your-feature`)
+3. Commit your changes
+4. Push and open a Pull Request
 
-## 📄 License
+## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+Licensed under the MIT License — see [LICENSE](LICENSE).
 
-## 🙏 Acknowledgements
+## Acknowledgements
 
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - YouTube downloader
-- [MoviePy](https://zulko.github.io/moviepy/) - Video processing
-- [Flask](https://flask.palletsprojects.com/) - Web framework
-- [Bootstrap](https://getbootstrap.com/) - UI framework
-- [Font Awesome](https://fontawesome.com/) - Icons
-- [Qidaya](https://qidaya.com) - Branding and design
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) — media downloading
+- [MoviePy](https://zulko.github.io/moviepy/) — video processing
+- [Flask](https://flask.palletsprojects.com/) — web framework
+- [Bootstrap](https://getbootstrap.com/) — UI framework
+- [Font Awesome](https://fontawesome.com/) — icons
+- [Qidaya](https://qidaya.com) — branding
 
-## 📞 Support
+## Support
 
-For questions or support:
-- Email: info@qidaya.com
-- Website: [MediaSculp Professional](https://mediasculp.com)
 - Issues: [GitHub Issues](https://github.com/bomino/MediaSculp2.0/issues)
 
 ---
 
-**MediaSculp 2.0** - Professional Video Processing Suite  
-Version 2.0.0 | Last Updated: December 2024
+**MediaSculp 2.0** — download and trim media, locally.

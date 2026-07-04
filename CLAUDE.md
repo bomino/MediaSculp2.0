@@ -14,6 +14,19 @@ MediaSculp 2.0 is a Flask-based web application for downloading and processing m
 - **No unsafe HTML**: templates no longer use `|safe` on user-influenced values; user messages go through `flash()` (Post/Redirect/Get) and are auto-escaped.
 - **Config abstraction**: `config.py` centralizes `SECRET_KEY`, `DEBUG`, folders, `FFMPEG_LOCATION`, and `MAX_CONTENT_LENGTH`, all env-driven (see `.env.example`). `app.py` is an application factory (`create_app`).
 - **Media fixes**: MP4 format selector corrected (was capped at 720p), audio no longer force-downsampled to 16 kHz, OGG maps to the `vorbis` codec, quality/playlist controls are wired, and duplicate downloads use yt-dlp's `download_archive`.
+- **FFmpeg auto-resolution**: `config._resolve_ffmpeg()` uses `FFMPEG_LOCATION`, else `PATH`, else the bundled `imageio-ffmpeg` binary — so downloads work without a separate ffmpeg install.
+
+### Background downloads (progress + cancel + limit)
+- **Async jobs**: `routes/main.py` runs `yt-dlp` in a daemon thread with an in-memory registry (`_jobs`, guarded by `_jobs_lock`). `POST /` returns immediately and redirects to `/?job=<id>`; the page polls `GET /download_status/<id>`. Jobs are single-process and in-memory (lost on restart, but `download_archive` lets a re-run resume).
+- **Real progress**: yt-dlp `progress_hooks` update percent + "Downloading N/total: title"; the frontend renders it (no more fake progress bar).
+- **Cancel**: `POST /cancel_download/<id>` (CSRF) sets a per-job flag; the progress hook raises `yt_dlp.utils.DownloadCancelled` to abort. Status becomes `cancelled`.
+- **Playlist limit**: an optional "first N items" field maps to yt-dlp `playlist_items='1:N'`.
+
+### UI redesign (compact, light + dark)
+- **Design system**: `static/styles.css` is fully token-driven (CSS custom properties). Light + dark themes via `data-theme` on `<html>`, set before paint by a no-flash script in `base.html`, defaulting to `prefers-color-scheme` with a persisted toggle button in the navbar.
+- **Look**: single desaturated **emerald** accent; **Geist** (UI) + **JetBrains Mono** (numbers) from Google Fonts; segmented tabs; restrained borders/shadows; focus-visible rings; `prefers-reduced-motion` support.
+- **Trimmed chrome**: removed the fake enterprise footer (newsletter/link-farm/social), marketing stat row, and lorem Terms/Privacy/Contact modals; slim honest footer. Copy is plain and sentence-case.
+- **Themed components**: the custom delete modal and other previously inline-styled bits are now token-based classes so dark mode works. Keep Bootstrap grid/JS + jQuery + Font Awesome (no framework migration).
 
 ### Fixed Delete Modal Freezing Issue (December 2024)
 - **Problem**: Bootstrap modals were causing the entire app to freeze when deleting files
@@ -56,23 +69,24 @@ source venv/bin/activate  # Linux/Mac
 ### Core Components
 
 1. **Flask Application Structure**
-   - Uses Flask Blueprints for modular route organization
-   - Main app entry point: `app.py`
-   - Routes split into:
-     - `routes/main.py`: Core functionality (downloading, trimming)
-     - `routes/downloads.py`: File management endpoints
+   - Application factory `create_app` in `app.py`; CSRF (`Flask-WTF`) and error handlers registered there
+   - Configuration in `config.py` (`Config` / `TestConfig`), all env-driven
+   - Shared helpers in `utils.py` (`resolve_within`, `unique_name`, `list_files`)
+   - Flask Blueprints for modular routes:
+     - `routes/main.py`: download (background jobs), trim, upload, `/download_status`, `/cancel_download`
+     - `routes/downloads.py`: file listing, download, delete endpoints
 
 2. **Media Processing Pipeline**
-   - **Downloading**: Uses `yt-dlp` library for YouTube/playlist downloads
-   - **Video Trimming**: Uses `moviepy` with FFmpeg backend
-   - **File Storage**: Two main directories:
-     - `downloads/`: Stores downloaded media files
-     - `trimmed_videos/`: Stores processed/trimmed videos
+   - **Downloading**: `yt-dlp` runs in a background daemon thread; the request returns immediately and the page polls job status (see the "Background downloads" section above)
+   - **Video Trimming**: `moviepy` with an FFmpeg backend (synchronous — a single quick local operation)
+   - **File Storage**: Two directories, created at startup by `create_app`:
+     - `downloads/`: Downloaded media files
+     - `trimmed_videos/`: Trimmed clips
 
 3. **External Dependencies**
-   - **FFmpeg**: Required system dependency. Resolved from `PATH` by default; override with the `FFMPEG_LOCATION` env var. (moviepy trimming uses the bundled `imageio-ffmpeg` binary.)
-   - **yt-dlp**: YouTube download functionality (keep current — stale pins break)
-   - **moviepy**: Video editing operations
+   - **FFmpeg**: Resolved by `config._resolve_ffmpeg()` — `FFMPEG_LOCATION`, else `PATH`, else the bundled `imageio-ffmpeg` binary. A separate install is optional.
+   - **yt-dlp**: Download functionality (keep current — stale pins break against YouTube)
+   - **moviepy**: Video trimming (uses the bundled `imageio-ffmpeg` binary)
 
 ### Key Technical Details
 
@@ -113,3 +127,5 @@ FileManager.init({ deletePrefix: '/delete_file/', itemNoun: 'file' });
 3. **Error Handling**: Exceptions are logged server-side; users see generic flash messages (no internals leaked)
 4. **Duplicate Prevention**: yt-dlp `download_archive` (`.download_archive.txt`) records downloaded video IDs
 5. **CSRF/Secrets/Debug**: CSRF on all POSTs; `SECRET_KEY` and `DEBUG` come from the environment
+6. **Download jobs**: in-memory and single-process; a job is lost if the server restarts, but a re-run resumes via `download_archive`. The dev server runs with `threaded=True` so status polls are served while a download runs.
+7. **Theming**: light/dark via `data-theme` on `<html>`; all colors are tokens in `styles.css`; the navbar toggle persists the choice in `localStorage` and the initial theme is set before paint.
