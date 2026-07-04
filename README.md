@@ -84,6 +84,19 @@ docker compose up --build
 
 Open `http://127.0.0.1:5000`. Downloads and trimmed clips are written to `./downloads` and `./trimmed_videos` on the host (mounted as volumes), and ffmpeg is bundled in the image. Set a fixed `SECRET_KEY` in `docker-compose.yml` so sessions survive a restart.
 
+## Hardened videos: PO-token provider (advanced, optional)
+
+For the toughest YouTube videos ("Only images are available" / SABR), the most robust option — beyond cookies — is a **PO-token provider** ([bgutil](https://github.com/Brainicism/bgutil-ytdlp-pot-provider)), which mints the tokens yt-dlp needs server-side. It has **two parts**, both required:
+
+1. **The plugin:** `pip install -r requirements-potoken.txt` (yt-dlp auto-discovers it).
+2. **The provider service:** run it and keep it reachable. Locally:
+   ```bash
+   docker run -d --name bgutil-provider -p 4416:4416 brainicism/bgutil-ytdlp-pot-provider
+   ```
+   The plugin defaults to `http://127.0.0.1:4416`; point elsewhere with `POT_PROVIDER_URL` (e.g. a Docker sidecar — see the commented `bgutil-provider` service in `docker-compose.yml`).
+
+> **Honest caveat:** this path is wired but **not verified end-to-end in this repo** — it needs the provider running and a valid session to prove out. It reduces reliance on cookies but doesn't make YouTube maintenance-free.
+
 ## Production server
 
 `python app.py` runs the Flask **dev server** — fine locally, not for exposure. For a production-style run, use the bundled [waitress](https://github.com/Pylons/waitress) server:

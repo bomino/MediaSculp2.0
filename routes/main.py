@@ -117,7 +117,7 @@ def _parse_extras(form):
     return {name for name in EXTRA_OPTIONS if form.get("opt_" + name)}
 
 
-def _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit=None, extras=None, cookies=None, js_runtime=None):
+def _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit=None, extras=None, cookies=None, js_runtime=None, pot_provider_url=None):
     extras = extras or set()
     opts = {
         "outtmpl": os.path.join(download_folder, "%(title)s.%(ext)s"),
@@ -145,6 +145,10 @@ def _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, pl
         # yt-dlp defaults to deno; name the available runtime so its nsig /
         # PO-token solver actually runs (else YouTube returns storyboards only).
         opts["js_runtimes"] = {js_runtime: {}}
+    if pot_provider_url:
+        # Point the bgutil PO-token plugin at a non-default provider (e.g. a
+        # Docker sidecar). No-op unless the plugin is installed.
+        opts.setdefault("extractor_args", {})["youtubepot-bgutilhttp"] = {"base_url": [pot_provider_url]}
 
     postprocessors = []
     if format_choice == "mp4":
@@ -331,7 +335,7 @@ def _diagnose(text, default):
     return default
 
 
-def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, quality, playlist_wanted, limit, extras, max_concurrent, db_path, logger, cookies=None, js_runtime=None):
+def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, quality, playlist_wanted, limit, extras, max_concurrent, db_path, logger, cookies=None, js_runtime=None, pot_provider_url=None):
     semaphore = _get_semaphore(max_concurrent)
     semaphore.acquire()
     try:
@@ -345,7 +349,7 @@ def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, 
         _update_job(job_id, status="running", message="Starting…")
 
         capture = _CaptureLogger()
-        opts = _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit, extras, cookies, js_runtime)
+        opts = _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit, extras, cookies, js_runtime, pot_provider_url)
         opts["progress_hooks"] = [_make_progress_hook(job_id)]
         opts["postprocessor_hooks"] = [_make_pp_hook(job_id)]
         opts["logger"] = capture
@@ -411,6 +415,7 @@ def _launch_download(url, format_choice, quality, playlist_wanted, limit, extras
     if browser or cookie_file:
         cookies = {"browser": browser, "file": cookie_file}
     js_runtime = current_app.config.get("JS_RUNTIME")
+    pot_provider_url = current_app.config.get("POT_PROVIDER_URL")
 
     min_free = current_app.config.get("MIN_FREE_BYTES", 0)
     if min_free:
@@ -441,6 +446,7 @@ def _launch_download(url, format_choice, quality, playlist_wanted, limit, extras
             logger,
             cookies,
             js_runtime,
+            pot_provider_url,
         ),
         daemon=True,
     )

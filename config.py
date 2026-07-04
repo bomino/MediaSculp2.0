@@ -159,6 +159,12 @@ class Config:
     COOKIES_FROM_BROWSER = os.environ.get("COOKIES_FROM_BROWSER") or None
     COOKIES_FILE = _resolve_cookies()
 
+    # Optional PO-token provider (bgutil) base URL. When the bgutil yt-dlp plugin
+    # is installed and its provider is reachable here, yt-dlp mints PO tokens
+    # server-side — the most robust fix for hardened YouTube. Blank = the plugin's
+    # default (http://127.0.0.1:4416); set this to point at a sidecar container.
+    POT_PROVIDER_URL = os.environ.get("POT_PROVIDER_URL") or None
+
     ALLOWED_VIDEO_EXTENSIONS = {"mp4", "mov", "avi", "mkv"}
     ALLOWED_AUDIO_FORMATS = {"mp3", "wav", "ogg"}
 

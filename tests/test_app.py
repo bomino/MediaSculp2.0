@@ -386,6 +386,18 @@ def test_build_ydl_opts_js_runtime():
     assert "js_runtimes" not in plain
 
 
+def test_build_ydl_opts_pot_provider():
+    from routes.main import _build_ydl_opts
+
+    opts = _build_ydl_opts(
+        "/d", None, "mp4", "720p", False, None, None, None, None, "http://bgutil:4416",
+    )
+    assert opts["extractor_args"]["youtubepot-bgutilhttp"] == {"base_url": ["http://bgutil:4416"]}
+
+    plain = _build_ydl_opts("/d", None, "mp4", "720p", False)
+    assert "extractor_args" not in plain
+
+
 def test_build_ydl_opts_sponsorblock_and_chapters():
     from routes.main import _build_ydl_opts
 

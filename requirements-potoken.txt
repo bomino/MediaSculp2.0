@@ -1,0 +1,14 @@
+# Optional: the bgutil PO-token provider plugin for yt-dlp — the most robust fix
+# for hardened YouTube videos ("Only images are available" / SABR), which reduces
+# reliance on account cookies.
+#
+# It has TWO parts and BOTH must be present:
+#   1. this plugin (installed here), and
+#   2. the provider service running and reachable — either the Docker sidecar in
+#      docker-compose.yml (set POT_PROVIDER_URL to point at it), or run it locally:
+#         docker run -d --name bgutil-provider -p 4416:4416 brainicism/bgutil-ytdlp-pot-provider
+#      (the plugin defaults to http://127.0.0.1:4416, so no POT_PROVIDER_URL needed then).
+#
+# See https://github.com/Brainicism/bgutil-ytdlp-pot-provider
+-r requirements.txt
+bgutil-ytdlp-pot-provider
