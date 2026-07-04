@@ -88,7 +88,15 @@ def _parse_limit(raw):
     return value if value > 0 else None
 
 
-def _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit=None):
+EXTRA_OPTIONS = ("subtitles", "thumbnail", "metadata")
+
+
+def _parse_extras(form):
+    return {name for name in EXTRA_OPTIONS if form.get("opt_" + name)}
+
+
+def _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit=None, extras=None):
+    extras = extras or set()
     opts = {
         "outtmpl": os.path.join(download_folder, "%(title)s.%(ext)s"),
         "noplaylist": not (playlist_wanted or limit),
@@ -102,18 +110,35 @@ def _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, pl
     if ffmpeg_location:
         opts["ffmpeg_location"] = ffmpeg_location
 
+    postprocessors = []
     if format_choice == "mp4":
         opts["format"] = _video_format(quality)
         opts["merge_output_format"] = "mp4"
     else:
         opts["format"] = "bestaudio/best"
-        opts["postprocessors"] = [
+        postprocessors.append(
             {
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": AUDIO_CODEC.get(format_choice, "mp3"),
                 "preferredquality": _audio_quality(quality),
             }
-        ]
+        )
+
+    if "subtitles" in extras:
+        opts["writesubtitles"] = True
+        opts["writeautomaticsub"] = True
+        # Just English — a wildcard pulls dozens of auto-translated tracks and
+        # trips YouTube's rate limiter, which can abort the whole download.
+        opts["subtitleslangs"] = ["en"]
+        if format_choice == "mp4":
+            postprocessors.append({"key": "FFmpegEmbedSubtitle"})
+    if "thumbnail" in extras:
+        opts["writethumbnail"] = True
+        postprocessors.append({"key": "EmbedThumbnail"})
+    if "metadata" in extras:
+        postprocessors.append({"key": "FFmpegMetadata"})
+
+    opts["postprocessors"] = postprocessors
     return opts
 
 
@@ -216,7 +241,7 @@ def _record(db_path, job_id, status, error):
         pass  # history is best-effort; never fail a download over it
 
 
-def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, quality, playlist_wanted, limit, max_concurrent, db_path, logger):
+def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, quality, playlist_wanted, limit, extras, max_concurrent, db_path, logger):
     semaphore = _get_semaphore(max_concurrent)
     semaphore.acquire()
     try:
@@ -229,7 +254,7 @@ def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, 
             return
         _update_job(job_id, status="running", message="Starting…")
 
-        opts = _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit)
+        opts = _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit, extras)
         opts["progress_hooks"] = [_make_progress_hook(job_id)]
         opts["postprocessor_hooks"] = [_make_pp_hook(job_id)]
         opts["quiet"] = True
@@ -264,7 +289,7 @@ def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, 
         semaphore.release()
 
 
-def _launch_download(url, format_choice, quality, playlist_wanted, limit):
+def _launch_download(url, format_choice, quality, playlist_wanted, limit, extras):
     download_folder = current_app.config["DOWNLOAD_FOLDER"]
     ffmpeg_location = current_app.config.get("FFMPEG_LOCATION")
     max_concurrent = current_app.config["MAX_CONCURRENT_DOWNLOADS"]
@@ -294,6 +319,7 @@ def _launch_download(url, format_choice, quality, playlist_wanted, limit):
             quality,
             playlist_wanted,
             limit,
+            extras,
             max_concurrent,
             db_path,
             logger,
@@ -305,15 +331,21 @@ def _launch_download(url, format_choice, quality, playlist_wanted, limit):
 
 
 def _start_download():
-    url = (request.form.get("url") or "").strip()
-    if not url:
+    urls = (request.form.get("url") or "").split()
+    if not urls:
         flash("Please enter a video URL.", "danger")
         return None
     format_choice = request.form.get("format", "mp3")
     quality = request.form.get("quality")
     playlist_wanted = bool(request.form.get("playlist"))
     limit = _parse_limit(request.form.get("limit"))
-    return _launch_download(url, format_choice, quality, playlist_wanted, limit)
+    extras = _parse_extras(request.form)
+    first = None
+    for url in urls:
+        job_id = _launch_download(url, format_choice, quality, playlist_wanted, limit, extras)
+        if job_id and first is None:
+            first = job_id
+    return first
 
 
 def _handle_trim(download_folder, trimmed_folder):
@@ -401,7 +433,7 @@ def redownload(download_id):
     if not row:
         flash("That download was not found in history.", "danger")
         return redirect(url_for("main.history"))
-    job_id = _launch_download(row["url"], row.get("format") or "mp3", None, False, None)
+    job_id = _launch_download(row["url"], row.get("format") or "mp3", None, False, None, set())
     if job_id:
         flash("Re-download started.", "success")
         return redirect(url_for("main.index", job=job_id))

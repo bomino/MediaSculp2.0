@@ -341,6 +341,48 @@ def test_redownload_starts_job(client, app, monkeypatch):
     assert client.post("/redownload/does-not-exist").status_code == 302
 
 
+def test_build_ydl_opts_extras():
+    from routes.main import _build_ydl_opts
+
+    opts = _build_ydl_opts("/d", None, "mp3", "192", False, None, {"subtitles", "thumbnail", "metadata"})
+    assert opts["writesubtitles"] is True
+    assert opts["writethumbnail"] is True
+    keys = [pp["key"] for pp in opts["postprocessors"]]
+    assert "FFmpegExtractAudio" in keys
+    assert "EmbedThumbnail" in keys
+    assert "FFmpegMetadata" in keys
+
+    plain = _build_ydl_opts("/d", None, "mp3", "192", False, None, set())
+    assert "writesubtitles" not in plain
+    assert [pp["key"] for pp in plain["postprocessors"]] == ["FFmpegExtractAudio"]
+
+
+def test_parse_extras():
+    from werkzeug.datastructures import MultiDict
+
+    from routes.main import _parse_extras
+
+    form = MultiDict([("opt_subtitles", "on"), ("opt_metadata", "on")])
+    assert _parse_extras(form) == {"subtitles", "metadata"}
+    assert _parse_extras(MultiDict()) == set()
+
+
+def test_multi_url_creates_multiple_jobs(client, monkeypatch):
+    import routes.main as main
+
+    monkeypatch.setattr(main, "_run_download", lambda *a, **k: None)
+    before = len(client.get("/downloads_status").get_json()["jobs"])
+    client.post(
+        "/",
+        data={
+            "action": "Download Playlist",
+            "url": "https://a.example/1\nhttps://a.example/2\nhttps://a.example/3",
+        },
+    )
+    after = client.get("/downloads_status").get_json()["jobs"]
+    assert len(after) >= before + 3
+
+
 def test_trim_missing_fields_flashes(client):
     response = client.post(
         "/", data={"action": "Trim Video"}, follow_redirects=True

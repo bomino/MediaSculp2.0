@@ -21,6 +21,7 @@ MediaSculp 2.0 is a Flask-based web application for downloading and processing m
 - **Real progress**: yt-dlp `progress_hooks` update percent + "Downloading N/total: title"; the frontend renders it (no more fake progress bar).
 - **Cancel**: `POST /cancel_download/<id>` (CSRF) sets a per-job flag; the progress hook raises `yt_dlp.utils.DownloadCancelled` to abort. Status becomes `cancelled`.
 - **Playlist limit**: an optional "first N items" field maps to yt-dlp `playlist_items='1:N'`.
+- **Extras + batch**: per-download options (`opt_subtitles`/`opt_thumbnail`/`opt_metadata` → extra `_build_ydl_opts` postprocessors); the URL box accepts several links (one job per line via `_start_download`); the form remembers the last options in `localStorage`. Note subtitles use `subtitleslangs=['en']` — a wildcard trips YouTube's rate limiter and can abort the download.
 - **Active downloads panel**: `static/downloads-panel.js` (loaded in `base.html`, so it shows on every page) polls `GET /downloads_status` and renders each running/queued job with progress + cancel. `_start_download` checks free space (`MIN_FREE_BYTES`) before starting; `app._ytdlp_startup` prints the yt-dlp version at startup (optional `AUTO_UPDATE_YTDLP` self-update).
 
 ### UI redesign (compact, light + dark)

@@ -9,6 +9,7 @@ It ships with a compact interface that has both light and dark themes.
 ## Features
 
 - **Download audio or video** from any site yt-dlp supports, with a format picker (MP3, WAV, OGG, MP4) and quality/bitrate selection.
+- **Extras & batch** — optionally embed a thumbnail/cover art, save metadata tags, and fetch subtitles; paste several links (one per line) to download them all at once. Your last options are remembered.
 - **Playlists** — download a whole playlist, or cap it to the first N items.
 - **Background downloads** — downloads run in the background and appear in an **Active downloads** panel (on every page) with per-job progress and a **Cancel** button, so a long playlist never freezes the page. Multiple downloads run in parallel up to a configurable limit; the rest queue. Downloaded video IDs are recorded (yt-dlp `download_archive`) so re-runs resume rather than re-download.
 - **Trim clips** — pick a downloaded video and cut a clip by start time and duration.
@@ -91,8 +92,9 @@ Run a **single instance only** — the download-job registry and concurrency lim
 
 ### Download
 1. Open the **Download** tab.
-2. Paste a link and pick a format (MP3/WAV/OGG or MP4) and quality.
-3. For a playlist URL, optionally set a **Playlist limit** to grab only the first N items.
+2. Paste one or more links (one per line to queue several) and pick a format (MP3/WAV/OGG or MP4) and quality.
+3. Optionally tick **Extras** — subtitles, embed thumbnail/cover art, save metadata tags. Your choices are remembered next time.
+4. For a playlist URL, optionally set a **Playlist limit** to grab only the first N items.
 4. Click **Start Download**. A progress bar shows real progress (e.g. "Downloading 3/19"); use **Cancel** to stop. Finished files appear on the **Downloads** page.
 
 ### Trim
