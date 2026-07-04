@@ -8,10 +8,12 @@ _TEMP_EXTENSIONS = {"part", "ytdl", "tmp"}
 def resolve_within(base_dir, filename):
     """Return an absolute path for filename confined to base_dir, or None.
 
-    safe_join rejects absolute paths, drive letters, and any '..'/backslash
-    traversal, so a None result means the input tried to escape base_dir.
+    Rejects empty names, backslashes and null bytes up front — a media filename
+    never contains them, and '\\' is a path separator only on Windows, so
+    rejecting it keeps traversal blocked identically on Linux/Docker. safe_join
+    then blocks absolute paths, drive letters and '..' traversal.
     """
-    if not filename:
+    if not filename or "\\" in filename or "\x00" in filename:
         return None
     return safe_join(base_dir, filename)
 
