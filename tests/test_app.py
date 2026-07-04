@@ -369,6 +369,54 @@ def test_build_ydl_opts_sponsorblock_and_chapters():
     assert pps["FFmpegMetadata"]["add_metadata"] is False
 
 
+def _auth_client(tmp_path, password="s3cret"):
+    from app import create_app
+    from config import TestConfig
+
+    class Cfg(TestConfig):
+        DOWNLOAD_FOLDER = str(tmp_path / "downloads")
+        TRIMMED_FOLDER = str(tmp_path / "trimmed_videos")
+        DATABASE = str(tmp_path / "test.db")
+        AUTH_PASSWORD = password
+
+    return create_app(Cfg).test_client()
+
+
+def test_auth_gates_when_enabled(tmp_path):
+    client = _auth_client(tmp_path)
+    resp = client.get("/")
+    assert resp.status_code == 302
+    assert "/login" in resp.headers["Location"]
+
+
+def test_auth_login_and_logout_flow(tmp_path):
+    client = _auth_client(tmp_path, password="s3cret")
+
+    bad = client.post("/login", data={"password": "wrong"})
+    assert bad.status_code == 200
+    assert b"Incorrect password" in bad.data
+    assert client.get("/").status_code == 302
+
+    ok = client.post("/login", data={"password": "s3cret"})
+    assert ok.status_code == 302
+    assert client.get("/").status_code == 200
+
+    client.get("/logout")
+    assert client.get("/").status_code == 302
+
+
+def test_auth_login_rejects_offsite_next(tmp_path):
+    client = _auth_client(tmp_path, password="pw")
+    resp = client.post("/login?next=https://evil.example", data={"password": "pw"})
+    assert resp.status_code == 302
+    assert "evil.example" not in resp.headers["Location"]
+
+
+def test_auth_disabled_by_default(client):
+    assert client.get("/").status_code == 200
+    assert client.get("/login").status_code == 302
+
+
 def test_downloads_stream_first_frame(app):
     import json
 

@@ -66,6 +66,7 @@ Copy `.env.example` to `.env` and adjust. Everything is optional with safe defau
 | `MAX_CONCURRENT_DOWNLOADS` | `3` | How many downloads run at once; extras queue. |
 | `MIN_FREE_BYTES` | `209715200` (200 MB) | Refuse to start a download below this free space (0 disables). |
 | `AUTO_UPDATE_YTDLP` | `0` | If `1`, run `pip install -U yt-dlp` at startup (restart to load). |
+| `AUTH_PASSWORD` | _(unset)_ | If set, gate the whole app behind a single-password login. Blank = no auth. |
 | `HOST` / `PORT` | `127.0.0.1` / `5000` | Bind address and port. Read by `python app.py` directly (not `config.py`). |
 
 `SECRET_KEY`, `FLASK_DEBUG`, the folder paths, `FFMPEG_LOCATION`, and `MAX_UPLOAD_BYTES` are read by `config.py` at startup; `HOST`/`PORT` are read by the `python app.py` / `serve.py` entrypoints.
@@ -131,13 +132,15 @@ MediaSculp2.0/
 ├── db.py                     # SQLite download history (stdlib sqlite3)
 ├── routes/
 │   ├── main.py               # Download (background jobs), trim, upload, status/cancel
-│   └── downloads.py          # File listing, download, delete endpoints
+│   ├── downloads.py          # File listing, download, delete endpoints
+│   └── auth.py               # Optional single-password login/logout
 ├── templates/
 │   ├── base.html             # Layout, navbar + theme toggle, slim footer
 │   ├── index.html            # Home: download / trim / upload tabs
 │   ├── downloads.html        # Downloads manager
 │   ├── trimmed_videos.html   # Trimmed videos manager
-│   └── history.html          # Download history
+│   ├── history.html          # Download history
+│   └── login.html            # Login page (when AUTH_PASSWORD is set)
 ├── static/
 │   ├── styles.css            # Token-based light/dark design system
 │   ├── file-manager.js       # Shared delete/search/stats logic (FileManager)
@@ -169,6 +172,8 @@ MediaSculp2.0/
 | POST | `/cancel_download/<job_id>` | Cancel a running download |
 | GET | `/history` | Download history (searchable) |
 | POST | `/redownload/<id>` | Re-download a history entry |
+| GET/POST | `/login` | Login page / submit (only when `AUTH_PASSWORD` is set) |
+| GET | `/logout` | Clear the login session |
 | GET/POST | `/upload` | GET redirects home; POST uploads a file |
 | GET | `/downloads` | Downloads manager |
 | GET | `/trimmed_videos` | Trimmed manager |
@@ -199,7 +204,7 @@ The suite uses Flask's test client and does not hit the network (download jobs a
 
 ## Security notes
 
-This is a single-user app intended for `127.0.0.1`. Keep `FLASK_DEBUG` off and don't expose it to a network without adding authentication — the file-management endpoints act on the local filesystem. CSRF protection is enabled and user-supplied paths are confined with `werkzeug.utils.safe_join`.
+This is a single-user app intended for `127.0.0.1`. Keep `FLASK_DEBUG` off and don't expose it to a network without protecting it — the file-management endpoints act on the local filesystem. If you do expose it (e.g. on a LAN), set `AUTH_PASSWORD` to gate the whole app behind a login, and set a fixed `SECRET_KEY` so the session persists. CSRF protection is enabled and user-supplied paths are confined with `werkzeug.utils.safe_join`.
 
 ## Contributing
 

@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, flash, redirect, render_template, request, url_for
+from flask import Flask, flash, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import CSRFProtect
 
 import db
@@ -23,15 +23,37 @@ def create_app(config_class=Config):
 
     from routes.main import main_bp
     from routes.downloads import downloads_bp
+    from routes.auth import auth_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(downloads_bp)
+    app.register_blueprint(auth_bp)
 
+    register_auth(app)
     register_error_handlers(app)
     register_template_filters(app)
     if not app.config.get("TESTING"):
         _ytdlp_startup(app)
     return app
+
+
+def register_auth(app):
+    auth_enabled = bool(app.config.get("AUTH_PASSWORD"))
+
+    @app.context_processor
+    def inject_auth():
+        return {"auth_enabled": auth_enabled}
+
+    if not auth_enabled:
+        return
+
+    open_endpoints = {"auth.login", "static"}
+
+    @app.before_request
+    def require_login():
+        if session.get("authed") or request.endpoint in open_endpoints:
+            return None
+        return redirect(url_for("auth.login", next=request.full_path if request.query_string else request.path))
 
 
 def register_template_filters(app):

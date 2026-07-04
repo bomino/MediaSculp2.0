@@ -61,6 +61,10 @@ class Config:
     # When true, attempt `pip install -U yt-dlp` at startup (needs a restart to load).
     AUTO_UPDATE_YTDLP = _env_bool("AUTO_UPDATE_YTDLP", False)
 
+    # Optional single-password gate. When set, every page requires logging in
+    # first — useful before exposing the app beyond localhost. Empty = no auth.
+    AUTH_PASSWORD = os.environ.get("AUTH_PASSWORD") or None
+
     ALLOWED_VIDEO_EXTENSIONS = {"mp4", "mov", "avi", "mkv"}
     ALLOWED_AUDIO_FORMATS = {"mp3", "wav", "ogg"}
 

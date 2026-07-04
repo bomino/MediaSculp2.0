@@ -396,6 +396,37 @@ textarea.form-control.drag-over {
     background: var(--accent-soft, rgba(16, 185, 129, 0.08));
 }
 
+.login-wrap {
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 380px;
+}
+
+.login-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 1.25rem;
+}
+
+.login-brand span {
+    display: block;
+    font-weight: 600;
+    line-height: 1.1;
+}
+
+.login-brand small {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
 select.form-control {
     cursor: pointer;
     padding-right: 2rem;
