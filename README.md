@@ -15,7 +15,7 @@ It ships with a compact interface that has both light and dark themes.
 - **Trim clips** — pick a downloaded video, scrub the built-in preview and set the start/end from the playhead, then cut. A fast keyframe copy by default, or tick **Precise cut** to re-encode for a frame-accurate clip.
 - **Upload** local video files to trim them.
 - **Manage files** — preview, download, and delete files; instant search (Ctrl+K), sort by name/size/date, filter by type, and real file sizes with at-a-glance counts.
-- **Download history** — every download is recorded to a small SQLite database, so a **History** page lets you search, re-download, and review past downloads even across restarts.
+- **Download history** — every download is recorded to a small SQLite database, so a **History** page lets you search, re-download, review past downloads even across restarts, and **delete** individual entries or **clear all** (records only — your files aren't touched).
 - **Light + dark theme** — follows your OS setting, with a toggle in the top bar.
 
 ## Requirements
@@ -201,6 +201,8 @@ MediaSculp2.0/
 | POST | `/cancel_download/<job_id>` | Cancel a running download |
 | GET | `/history` | Download history (searchable) |
 | POST | `/redownload/<id>` | Re-download a history entry |
+| POST | `/history/delete/<id>` | Delete one history entry (record only) |
+| POST | `/history/delete_all` | Clear all history (records only) |
 | GET/POST | `/login` | Login page / submit (only when `AUTH_PASSWORD` is set) |
 | GET | `/logout` | Clear the login session |
 | GET/POST | `/upload` | GET redirects home; POST uploads a file |

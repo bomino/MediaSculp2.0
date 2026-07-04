@@ -603,6 +603,21 @@ def redownload(download_id):
     return redirect(url_for("main.history"))
 
 
+@main_bp.route("/history/delete/<download_id>", methods=["POST"])
+def delete_history(download_id):
+    db.delete_download(current_app.config["DATABASE"], download_id)
+    flash("Removed from history. The downloaded file was not deleted.", "success")
+    return redirect(url_for("main.history"))
+
+
+@main_bp.route("/history/delete_all", methods=["POST"])
+def clear_history():
+    removed = db.delete_all_downloads(current_app.config["DATABASE"])
+    noun = "entry" if removed == 1 else "entries"
+    flash(f"Cleared {removed} history {noun}. Downloaded files were not deleted.", "success")
+    return redirect(url_for("main.history"))
+
+
 @main_bp.route("/upload", methods=["GET", "POST"])
 def upload_video():
     if request.method == "GET":

@@ -72,6 +72,18 @@ def list_downloads(path, query=None, limit=200):
         return [dict(r) for r in conn.execute(sql, args).fetchall()]
 
 
+def delete_download(path, download_id):
+    """Delete one history row. Returns the number of rows removed (0 or 1)."""
+    with closing(_connect(path)) as conn, conn:
+        return conn.execute("DELETE FROM downloads WHERE id = ?", (download_id,)).rowcount
+
+
+def delete_all_downloads(path):
+    """Delete every history row. Returns the number of rows removed."""
+    with closing(_connect(path)) as conn, conn:
+        return conn.execute("DELETE FROM downloads").rowcount
+
+
 def mark_interrupted(path):
     with closing(_connect(path)) as conn, conn:
         conn.execute(

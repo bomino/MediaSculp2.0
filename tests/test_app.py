@@ -592,6 +592,41 @@ def test_run_download_partial_playlist_stays_done(app, monkeypatch):
     assert "Some items were skipped" in job["message"]
 
 
+def test_db_delete_download_and_all(tmp_path):
+    import db
+
+    path = str(tmp_path / "hist.db")
+    db.init_db(path)
+    db.insert_download(path, "id1", "http://x/1", "mp3", "2026-07-04T00:00:00")
+    db.insert_download(path, "id2", "http://x/2", "mp4", "2026-07-04T00:00:01")
+    assert len(db.list_downloads(path)) == 2
+
+    assert db.delete_download(path, "id1") == 1
+    assert db.delete_download(path, "missing") == 0
+    remaining = db.list_downloads(path)
+    assert len(remaining) == 1 and remaining[0]["id"] == "id2"
+
+    assert db.delete_all_downloads(path) == 1
+    assert db.list_downloads(path) == []
+
+
+def test_history_delete_routes(client, app):
+    import db
+
+    path = app.config["DATABASE"]
+    db.insert_download(path, "a", "http://x/a", "mp3", "2026-07-04T00:00:00")
+    db.insert_download(path, "b", "http://x/b", "mp4", "2026-07-04T00:00:01")
+
+    resp = client.post("/history/delete/a", follow_redirects=True)
+    assert resp.status_code == 200
+    assert db.get_download(path, "a") is None
+    assert db.get_download(path, "b") is not None
+
+    resp = client.post("/history/delete_all", follow_redirects=True)
+    assert resp.status_code == 200
+    assert db.list_downloads(path) == []
+
+
 def test_list_files_detailed(tmp_path):
     from utils import list_files_detailed
 

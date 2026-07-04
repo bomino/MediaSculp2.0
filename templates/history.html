@@ -23,10 +23,25 @@
 
 <div class="card mb-4">
     <div class="card-body">
-        <form method="get" class="input-group">
-            <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
-            <input type="text" name="q" class="form-control" placeholder="Search history…" value="{{ query }}" aria-label="Search history">
-        </form>
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <form method="get" class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
+                    <input type="text" name="q" class="form-control" placeholder="Search history…" value="{{ query }}" aria-label="Search history">
+                </form>
+            </div>
+            {% if rows %}
+            <div class="col-auto">
+                <form method="post" action="{{ url_for('main.clear_history') }}" class="js-confirm-form" style="margin: 0;"
+                      data-message="Clear ALL download history? This can't be undone. Your downloaded files are not deleted.">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash" aria-hidden="true"></i> Delete all
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
     </div>
 </div>
 
@@ -75,6 +90,13 @@
                                         <i class="fas fa-rotate-right" aria-hidden="true"></i> Re-download
                                     </button>
                                 </form>
+                                <form method="post" action="{{ url_for('main.delete_history', download_id=row.id) }}" class="js-confirm-form" style="display: inline;"
+                                      data-message="Remove this entry from history? The downloaded file is not deleted.">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-danger" title="Delete from history" aria-label="Delete history entry">
+                                        <i class="fas fa-trash" aria-hidden="true"></i>
+                                    </button>
+                                </form>
                             </div>
                         </td>
                     </tr>
@@ -94,4 +116,64 @@
     </div>
 </div>
 {% endif %}
+
+<div id="historyConfirmModal" class="confirm-modal" style="display: none;">
+    <div class="confirm-modal__backdrop" data-close></div>
+    <div class="confirm-modal__dialog">
+        <div class="confirm-modal__header">
+            <i class="fas fa-exclamation-triangle" aria-hidden="true"></i> Confirm
+        </div>
+        <div class="confirm-modal__body" id="historyConfirmMsg">Are you sure?</div>
+        <div class="confirm-modal__footer">
+            <button type="button" class="btn btn-secondary" data-close>
+                <i class="fas fa-times" aria-hidden="true"></i> Cancel
+            </button>
+            <button type="button" class="btn btn-danger" id="historyConfirmBtn">
+                <i class="fas fa-trash" aria-hidden="true"></i> Delete
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (function () {
+        var pendingForm = null;
+        var modal = document.getElementById('historyConfirmModal');
+        var message = document.getElementById('historyConfirmMsg');
+        var confirmBtn = document.getElementById('historyConfirmBtn');
+
+        function openModal(text, form) {
+            pendingForm = form;
+            if (message) { message.textContent = text; }
+            if (modal) { modal.style.display = 'block'; document.body.style.overflow = 'hidden'; }
+        }
+
+        function closeModal() {
+            pendingForm = null;
+            if (modal) { modal.style.display = 'none'; }
+            document.body.style.overflow = '';
+        }
+
+        document.querySelectorAll('.js-confirm-form').forEach(function (form) {
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                openModal(form.getAttribute('data-message') || 'Are you sure?', form);
+            });
+        });
+
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', function () {
+                var form = pendingForm;
+                closeModal();
+                if (form) { form.submit(); }
+            });
+        }
+
+        document.querySelectorAll('#historyConfirmModal [data-close]').forEach(function (el) {
+            el.addEventListener('click', closeModal);
+        });
+    })();
+</script>
 {% endblock %}
