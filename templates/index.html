@@ -352,42 +352,48 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Download form handler
     if (downloadForm) {
+        let submitting = false;
         downloadForm.addEventListener('submit', function(e) {
-            const url = document.getElementById('url').value;
+            if (submitting) { e.preventDefault(); return; }
+            const url = document.getElementById('url').value.trim();
             if (!url) {
                 e.preventDefault();
                 alert('Please enter a valid URL');
                 return;
             }
+            submitting = true;
             showLoading('Starting download…');
         });
     }
     
     // Trim form handler
     if (trimForm) {
+        let submitting = false;
         trimForm.addEventListener('submit', function(e) {
+            if (submitting) { e.preventDefault(); return; }
             const videoFile = document.getElementById('video_file').value;
             const startTime = document.getElementById('start_time').value;
             const duration = document.getElementById('duration').value;
-            
+
             if (!videoFile) {
                 e.preventDefault();
                 alert('Please select a video file');
                 return;
             }
-            
+
             if (!startTime || !duration) {
                 e.preventDefault();
                 alert('Please enter valid start time and duration');
                 return;
             }
-            
+
             if (parseFloat(duration) <= 0) {
                 e.preventDefault();
                 alert('Duration must be greater than 0');
                 return;
             }
 
+            submitting = true;
             showLoading('Trimming… this can take a while.');
         });
     }

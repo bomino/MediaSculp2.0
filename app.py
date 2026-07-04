@@ -20,9 +20,11 @@ def _resource_root():
 
 
 def create_app(config_class=Config):
-    # A downloaded yt-dlp (vendor dir) must shadow any bundled copy before the
-    # routes import yt-dlp, so this has to run first.
-    ytdlp_updater.ensure_on_path()
+    # In a frozen build a downloaded yt-dlp (vendor dir) must shadow the bundled
+    # copy before the routes import yt-dlp. Only when frozen — a dev checkout
+    # should keep using its own pip-installed yt-dlp.
+    if getattr(sys, "frozen", False):
+        ytdlp_updater.ensure_on_path()
 
     root = _resource_root()
     app = Flask(

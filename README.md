@@ -67,6 +67,8 @@ Copy `.env.example` to `.env` and adjust. Everything is optional with safe defau
 | `MIN_FREE_BYTES` | `209715200` (200 MB) | Refuse to start a download below this free space (0 disables). |
 | `AUTO_UPDATE_YTDLP` | `0` | If `1`, run `pip install -U yt-dlp` at startup (restart to load). |
 | `AUTH_PASSWORD` | _(unset)_ | If set, gate the whole app behind a single-password login. Blank = no auth. |
+| `COOKIES_FROM_BROWSER` | _(unset)_ | Read YouTube cookies from this browser (`firefox`/`chrome`/`edge`/…) to pass "not a bot" checks. |
+| `COOKIES_FILE` | _(unset)_ | Path to an exported `cookies.txt` — an alternative to `COOKIES_FROM_BROWSER`. |
 | `HOST` / `PORT` | `127.0.0.1` / `5000` | Bind address and port. Read by `python app.py` directly (not `config.py`). |
 
 `SECRET_KEY`, `FLASK_DEBUG`, the folder paths, `FFMPEG_LOCATION`, and `MAX_UPLOAD_BYTES` are read by `config.py` at startup; `HOST`/`PORT` are read by the `python app.py` / `serve.py` entrypoints.
@@ -123,6 +125,8 @@ This produces `dist/MediaSculp/` containing `MediaSculp.exe` (Windows). ffmpeg a
 3. Optionally tick **Extras** — subtitles, embed thumbnail/cover art, save metadata tags, embed chapter markers, skip sponsor segments. Your choices are remembered next time.
 4. For a playlist URL, optionally set a **Playlist limit** to grab only the first N items.
 4. Click **Start Download**. A progress bar shows real progress (e.g. "Downloading 3/19"); use **Cancel** to stop. Finished files appear on the **Downloads** page.
+
+> **"Sign in to confirm you're not a bot"?** YouTube gates some videos behind a login. Set `COOKIES_FROM_BROWSER` (e.g. `firefox`) — or `COOKIES_FILE` to an exported `cookies.txt` — in your `.env` so yt-dlp can use your YouTube session. On Windows, Chrome/Edge lock their cookie database while running, so Firefox tends to work best.
 
 ### Trim
 1. Open the **Trim** tab and pick a downloaded video — it loads into a preview player.

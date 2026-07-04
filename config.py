@@ -74,6 +74,13 @@ class Config:
     # first — useful before exposing the app beyond localhost. Empty = no auth.
     AUTH_PASSWORD = os.environ.get("AUTH_PASSWORD") or None
 
+    # Optional YouTube auth to satisfy "confirm you're not a bot" checks.
+    # COOKIES_FROM_BROWSER reads cookies from a logged-in browser
+    # (firefox/chrome/edge/brave/opera/vivaldi/chromium); COOKIES_FILE points at
+    # an exported cookies.txt. Either, both, or neither.
+    COOKIES_FROM_BROWSER = os.environ.get("COOKIES_FROM_BROWSER") or None
+    COOKIES_FILE = os.environ.get("COOKIES_FILE") or None
+
     ALLOWED_VIDEO_EXTENSIONS = {"mp4", "mov", "avi", "mkv"}
     ALLOWED_AUDIO_FORMATS = {"mp3", "wav", "ogg"}
 

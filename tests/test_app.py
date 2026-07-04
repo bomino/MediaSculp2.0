@@ -357,6 +357,21 @@ def test_build_ydl_opts_extras():
     assert [pp["key"] for pp in plain["postprocessors"]] == ["FFmpegExtractAudio"]
 
 
+def test_build_ydl_opts_cookies():
+    from routes.main import _build_ydl_opts
+
+    opts = _build_ydl_opts(
+        "/d", None, "mp4", "720p", False, None, None,
+        {"browser": "firefox", "file": "/path/cookies.txt"},
+    )
+    assert opts["cookiesfrombrowser"] == ("firefox",)
+    assert opts["cookiefile"] == "/path/cookies.txt"
+
+    plain = _build_ydl_opts("/d", None, "mp4", "720p", False)
+    assert "cookiesfrombrowser" not in plain
+    assert "cookiefile" not in plain
+
+
 def test_build_ydl_opts_sponsorblock_and_chapters():
     from routes.main import _build_ydl_opts
 

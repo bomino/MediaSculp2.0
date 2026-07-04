@@ -117,7 +117,7 @@ def _parse_extras(form):
     return {name for name in EXTRA_OPTIONS if form.get("opt_" + name)}
 
 
-def _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit=None, extras=None):
+def _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit=None, extras=None, cookies=None):
     extras = extras or set()
     opts = {
         "outtmpl": os.path.join(download_folder, "%(title)s.%(ext)s"),
@@ -131,6 +131,11 @@ def _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, pl
         opts["playlist_items"] = f"1:{limit}"
     if ffmpeg_location:
         opts["ffmpeg_location"] = ffmpeg_location
+    if cookies:
+        if cookies.get("browser"):
+            opts["cookiesfrombrowser"] = (cookies["browser"],)
+        if cookies.get("file"):
+            opts["cookiefile"] = cookies["file"]
 
     postprocessors = []
     if format_choice == "mp4":
@@ -280,7 +285,7 @@ def _record(db_path, job_id, status, error):
         pass  # history is best-effort; never fail a download over it
 
 
-def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, quality, playlist_wanted, limit, extras, max_concurrent, db_path, logger):
+def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, quality, playlist_wanted, limit, extras, max_concurrent, db_path, logger, cookies=None):
     semaphore = _get_semaphore(max_concurrent)
     semaphore.acquire()
     try:
@@ -293,7 +298,7 @@ def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, 
             return
         _update_job(job_id, status="running", message="Starting…")
 
-        opts = _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit, extras)
+        opts = _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit, extras, cookies)
         opts["progress_hooks"] = [_make_progress_hook(job_id)]
         opts["postprocessor_hooks"] = [_make_pp_hook(job_id)]
         opts["quiet"] = True
@@ -352,6 +357,12 @@ def _launch_download(url, format_choice, quality, playlist_wanted, limit, extras
     db_path = current_app.config["DATABASE"]
     logger = current_app.logger
 
+    cookies = None
+    browser = current_app.config.get("COOKIES_FROM_BROWSER")
+    cookie_file = current_app.config.get("COOKIES_FILE")
+    if browser or cookie_file:
+        cookies = {"browser": browser, "file": cookie_file}
+
     min_free = current_app.config.get("MIN_FREE_BYTES", 0)
     if min_free:
         try:
@@ -379,6 +390,7 @@ def _launch_download(url, format_choice, quality, playlist_wanted, limit, extras
             max_concurrent,
             db_path,
             logger,
+            cookies,
         ),
         daemon=True,
     )
