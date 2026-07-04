@@ -486,6 +486,22 @@ def test_ytdlp_updater_ensure_on_path(tmp_path, monkeypatch):
             sys.path.remove(str(vendor))
 
 
+def test_resolve_cookies_autodetect(tmp_path, monkeypatch):
+    import config
+
+    monkeypatch.delenv("COOKIES_FILE", raising=False)
+    monkeypatch.setattr(config, "DATA_ROOT", str(tmp_path))
+    monkeypatch.setattr(config, "BASE_DIR", str(tmp_path))
+
+    assert config._resolve_cookies() is None
+
+    (tmp_path / "cookies.txt").write_text("# Netscape HTTP Cookie File\n")
+    assert config._resolve_cookies() == str(tmp_path / "cookies.txt")
+
+    monkeypatch.setenv("COOKIES_FILE", "/explicit/path.txt")
+    assert config._resolve_cookies() == "/explicit/path.txt"
+
+
 def test_ytdlp_updater_normalize_and_latest_release():
     from ytdlp_updater import _latest_release, _normalize
 

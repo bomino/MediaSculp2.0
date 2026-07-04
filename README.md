@@ -67,11 +67,11 @@ Copy `.env.example` to `.env` and adjust. Everything is optional with safe defau
 | `MAX_CONCURRENT_DOWNLOADS` | `3` | How many downloads run at once; extras queue. |
 | `MIN_FREE_BYTES` | `209715200` (200 MB) | Refuse to start a download below this free space (0 disables). |
 | `AUTO_UPDATE_YTDLP` | `0` | If `1`, update yt-dlp at startup (restart to load). |
-| `YTDLP_NIGHTLY` | `0` | If `1`, track yt-dlp's nightly channel — ships YouTube fixes days ahead of stable. |
-| `YTDLP_JS_RUNTIME` | auto | JS runtime for yt-dlp's PO-token solver (`node`/`deno` or a path); blank = auto-detect on PATH. |
+| `YTDLP_NIGHTLY` | packaged: `1`, dev: `0` | Track yt-dlp's nightly channel — ships YouTube fixes days ahead of stable. |
+| `YTDLP_JS_RUNTIME` | auto | JS runtime for yt-dlp's PO-token solver (`node`/`deno` or a path); blank = auto-detect (bundled Deno, then PATH). |
 | `AUTH_PASSWORD` | _(unset)_ | If set, gate the whole app behind a single-password login. Blank = no auth. |
 | `COOKIES_FROM_BROWSER` | _(unset)_ | Read YouTube cookies from this browser (`firefox`/`chrome`/`edge`/…) to pass "not a bot" checks. |
-| `COOKIES_FILE` | _(unset)_ | Path to an exported `cookies.txt` — an alternative to `COOKIES_FROM_BROWSER`. |
+| `COOKIES_FILE` | auto | Path to an exported `cookies.txt`. Unset = auto-detect a drop-in `cookies.txt` beside the app / in the data folder. |
 | `HOST` / `PORT` | `127.0.0.1` / `5000` | Bind address and port. Read by `python app.py` directly (not `config.py`). |
 
 `SECRET_KEY`, `FLASK_DEBUG`, the folder paths, `FFMPEG_LOCATION`, and `MAX_UPLOAD_BYTES` are read by `config.py` at startup; `HOST`/`PORT` are read by the `python app.py` / `serve.py` entrypoints.
@@ -130,7 +130,7 @@ This produces `dist/MediaSculp/` containing `MediaSculp.exe` (Windows). ffmpeg a
 4. Click **Start Download**. A progress bar shows real progress (e.g. "Downloading 3/19"); use **Cancel** to stop. Finished files appear on the **Downloads** page.
 
 > **Download fails on a YouTube video?** The app now translates the common causes into guidance in the progress panel:
-> - *"Sign in to confirm you're not a bot"* → set `COOKIES_FROM_BROWSER` (e.g. `firefox`) or `COOKIES_FILE` (an exported `cookies.txt`). On Windows, Chrome/Edge lock their cookie DB while running, so Firefox tends to work best.
+> - *"Sign in to confirm you're not a bot"* → give it your YouTube cookies. Easiest: export a `cookies.txt` and **drop it beside the app / in the data folder** — it's auto-detected. Or set `COOKIES_FROM_BROWSER` (e.g. `firefox`). On Windows, Chrome/Edge lock their cookie DB while running, so Firefox tends to work best. Cookies expire — re-export from a private window (sign in, export, close the window) if it stops working.
 > - *Only storyboards / "Requested format is not available"* → the streams are PO-token/SABR-gated. Make sure a **JS runtime** (Node ≥22 or Deno) is installed and set **`YTDLP_NIGHTLY=1`** — nightly yt-dlp plus a JS runtime is what unlocks these.
 
 ### Trim

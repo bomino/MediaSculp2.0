@@ -53,6 +53,32 @@ def _resolve_js_runtime():
     return None
 
 
+_COOKIE_FILENAMES = (
+    "cookies.txt",
+    "www.youtube.com_cookies.txt",
+    "youtube.com_cookies.txt",
+    "youtube_cookies.txt",
+)
+
+
+def _resolve_cookies():
+    """Locate an exported cookies.txt for YouTube auth.
+
+    Honors COOKIES_FILE, else auto-detects a drop-in cookies file in the data
+    folder or next to the app — so any user, on any machine, can just drop a
+    'cookies.txt' beside the app with no config editing. Returns a path or None.
+    """
+    override = os.environ.get("COOKIES_FILE")
+    if override:
+        return override
+    for directory in dict.fromkeys((DATA_ROOT, BASE_DIR)):
+        for name in _COOKIE_FILENAMES:
+            candidate = os.path.join(directory, name)
+            if os.path.isfile(candidate):
+                return candidate
+    return None
+
+
 def _resolve_ffmpeg():
     """Locate ffmpeg for yt-dlp: explicit override, then PATH, then the
     imageio-ffmpeg bundled binary (already a dependency), else None."""
@@ -101,8 +127,9 @@ class Config:
 
     # Track yt-dlp's nightly channel instead of stable. Nightly ships YouTube
     # fixes days ahead of tagged releases — often the difference between a video
-    # downloading and returning storyboards.
-    YTDLP_NIGHTLY = _env_bool("YTDLP_NIGHTLY", False)
+    # downloading and returning storyboards. Defaults on for the packaged app
+    # (which can't be pip-upgraded ad hoc); off for a dev checkout.
+    YTDLP_NIGHTLY = _env_bool("YTDLP_NIGHTLY", getattr(sys, "frozen", False))
 
     # Optional single-password gate. When set, every page requires logging in
     # first — useful before exposing the app beyond localhost. Empty = no auth.
@@ -110,10 +137,11 @@ class Config:
 
     # Optional YouTube auth to satisfy "confirm you're not a bot" checks.
     # COOKIES_FROM_BROWSER reads cookies from a logged-in browser
-    # (firefox/chrome/edge/brave/opera/vivaldi/chromium); COOKIES_FILE points at
-    # an exported cookies.txt. Either, both, or neither.
+    # (firefox/chrome/edge/brave/opera/vivaldi/chromium); COOKIES_FILE (or a
+    # drop-in cookies.txt beside the app / in the data folder) points at an
+    # exported cookies file. Either, both, or neither.
     COOKIES_FROM_BROWSER = os.environ.get("COOKIES_FROM_BROWSER") or None
-    COOKIES_FILE = os.environ.get("COOKIES_FILE") or None
+    COOKIES_FILE = _resolve_cookies()
 
     ALLOWED_VIDEO_EXTENSIONS = {"mp4", "mov", "avi", "mkv"}
     ALLOWED_AUDIO_FORMATS = {"mp3", "wav", "ogg"}
