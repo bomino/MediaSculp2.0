@@ -431,6 +431,88 @@ def test_downloads_stream_first_frame(app):
         assert "jobs" in payload
 
 
+def _run_download_with_fake_ydl(app, monkeypatch, fake_cls):
+    import routes.main as main
+
+    monkeypatch.setattr(main.yt_dlp, "YoutubeDL", fake_cls)
+    job_id = main._create_job("mp4")
+    main._run_download(
+        job_id,
+        app.config["DOWNLOAD_FOLDER"],
+        None,
+        "https://example/video",
+        "mp4",
+        "best",
+        False,
+        None,
+        set(),
+        1,
+        app.config["DATABASE"],
+        app.logger,
+    )
+    with main._jobs_lock:
+        return dict(main._jobs[job_id])
+
+
+def test_run_download_errors_when_nothing_produced(app, monkeypatch):
+    class FakeYDL:
+        def __init__(self, opts):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def download(self, urls):
+            return 1  # yt-dlp swallowed a failure via ignoreerrors
+
+    job = _run_download_with_fake_ydl(app, monkeypatch, FakeYDL)
+    assert job["status"] == "error"
+    assert "Nothing was downloaded" in job["message"]
+
+
+def test_run_download_done_on_success(app, monkeypatch):
+    class FakeYDL:
+        def __init__(self, opts):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def download(self, urls):
+            return 0
+
+    job = _run_download_with_fake_ydl(app, monkeypatch, FakeYDL)
+    assert job["status"] == "done"
+    assert "Some items were skipped" not in job["message"]
+
+
+def test_run_download_partial_playlist_stays_done(app, monkeypatch):
+    class FakeYDL:
+        def __init__(self, opts):
+            self.hooks = opts.get("progress_hooks", [])
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def download(self, urls):
+            for hook in self.hooks:
+                hook({"status": "finished", "info_dict": {"title": "ok"}})
+            return 1  # one item failed, but another produced a file
+
+    job = _run_download_with_fake_ydl(app, monkeypatch, FakeYDL)
+    assert job["status"] == "done"
+    assert "Some items were skipped" in job["message"]
+
+
 def test_list_files_detailed(tmp_path):
     from utils import list_files_detailed
 

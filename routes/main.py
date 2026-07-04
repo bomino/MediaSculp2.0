@@ -241,6 +241,7 @@ def _make_progress_hook(job_id):
                     job["percent"] = round(fraction * 100)
                     job["message"] = f"Downloading: {job['current_title']}"
             elif data.get("status") == "finished":
+                job["produced"] = True
                 job["message"] = f"Converting: {job['current_title']}"
 
     return hook
@@ -299,7 +300,7 @@ def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, 
         opts["no_warnings"] = True
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
-                ydl.download([url])
+                retcode = ydl.download([url])
         except yt_dlp.utils.DownloadCancelled:
             _update_job(job_id, status="cancelled", message="Download cancelled.")
             _record(db_path, job_id, "cancelled", None)
@@ -316,12 +317,29 @@ def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, 
 
         with _jobs_lock:
             job = _jobs.get(job_id)
+            produced = bool(job.get("produced")) if job else False
+
+        # ignoreerrors="only_download" makes yt-dlp log failures and return a
+        # non-zero code instead of raising. If nothing was produced, the job
+        # really failed — don't report it as a completed download.
+        if retcode and not produced:
+            _update_job(
+                job_id,
+                status="error",
+                message="Nothing was downloaded — the video may be unavailable or blocked.",
+            )
+            _record(db_path, job_id, "error", "Nothing downloaded")
+            return
+
+        with _jobs_lock:
+            job = _jobs.get(job_id)
             if job is not None:
                 job["status"] = "done"
                 job["percent"] = 100
                 count = job.get("total")
                 suffix = f" {count} item(s)." if count else ""
-                job["message"] = f"Download completed in {format_choice.upper()} format.{suffix}"
+                note = " Some items were skipped." if retcode else ""
+                job["message"] = f"Download completed in {format_choice.upper()} format.{suffix}{note}"
         _record(db_path, job_id, "done", None)
     finally:
         semaphore.release()
