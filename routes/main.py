@@ -122,13 +122,18 @@ def _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, pl
     opts = {
         "outtmpl": os.path.join(download_folder, "%(title)s.%(ext)s"),
         "noplaylist": not (playlist_wanted or limit),
-        "download_archive": os.path.join(download_folder, ".download_archive.txt"),
         "socket_timeout": 30,
         "retries": 3,
         "ignoreerrors": "only_download",
     }
-    if limit:
-        opts["playlist_items"] = f"1:{limit}"
+    # The archive is keyed by video id only, so it would block re-downloading a
+    # video in a different format (e.g. MP3 after MP4). Use it only for
+    # playlists (to resume/skip done items); a single video the user asked for
+    # is deduped by yt-dlp's own output-file check instead.
+    if playlist_wanted or limit:
+        opts["download_archive"] = os.path.join(download_folder, ".download_archive.txt")
+        if limit:
+            opts["playlist_items"] = f"1:{limit}"
     if ffmpeg_location:
         opts["ffmpeg_location"] = ffmpeg_location
     if cookies:

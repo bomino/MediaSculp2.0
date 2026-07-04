@@ -143,7 +143,7 @@ FileManager.init({ deletePrefix: '/delete_file/', itemNoun: 'file' });
 1. **FFmpeg**: Resolved from `PATH`, overridable via `FFMPEG_LOCATION` — cross-platform
 2. **File Validation**: Extension-based validation on the sanitized filename; paths confined via `resolve_within`
 3. **Error Handling**: Exceptions are logged server-side; users see generic flash messages (no internals leaked)
-4. **Duplicate Prevention**: yt-dlp `download_archive` (`.download_archive.txt`) records downloaded video IDs
+4. **Duplicate Prevention**: yt-dlp `download_archive` (`.download_archive.txt`) records downloaded video IDs — **only for playlist downloads** (`playlist_wanted`/`limit`). Single videos aren't archive-gated (the archive is keyed by id only, so it would otherwise block re-fetching the same video in another format, e.g. MP3 after MP4); duplicates there are handled by yt-dlp's output-file check.
 5. **CSRF/Secrets/Debug**: CSRF on all POSTs; `SECRET_KEY` and `DEBUG` come from the environment
 6. **Download jobs**: in-memory and single-process; a job is lost if the server restarts, but a re-run resumes via `download_archive`. The dev server runs with `threaded=True` so status polls are served while a download runs.
 7. **Theming**: light/dark via `data-theme` on `<html>`; all colors are tokens in `styles.css`; the navbar toggle persists the choice in `localStorage` and the initial theme is set before paint.

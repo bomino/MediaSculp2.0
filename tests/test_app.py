@@ -187,14 +187,18 @@ def test_build_ydl_opts_limit_and_playlist():
     limited = _build_ydl_opts("/d", None, "mp3", "192", playlist_wanted=False, limit=3)
     assert limited["playlist_items"] == "1:3"
     assert limited["noplaylist"] is False
+    assert "download_archive" in limited
 
     plain = _build_ydl_opts("/d", None, "mp3", "192", playlist_wanted=False, limit=None)
     assert plain["noplaylist"] is True
     assert "playlist_items" not in plain
+    # A single video is not archive-gated, so it can be re-fetched in another format.
+    assert "download_archive" not in plain
 
     whole = _build_ydl_opts("/d", None, "mp4", "720p", playlist_wanted=True, limit=None)
     assert whole["noplaylist"] is False
     assert whole["merge_output_format"] == "mp4"
+    assert "download_archive" in whole
 
 
 def test_cancel_download(client, monkeypatch):
