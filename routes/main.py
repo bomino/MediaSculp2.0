@@ -88,7 +88,7 @@ def _parse_limit(raw):
     return value if value > 0 else None
 
 
-EXTRA_OPTIONS = ("subtitles", "thumbnail", "metadata")
+EXTRA_OPTIONS = ("subtitles", "thumbnail", "metadata", "sponsorblock", "chapters")
 
 
 def _parse_extras(form):
@@ -135,8 +135,24 @@ def _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, pl
     if "thumbnail" in extras:
         opts["writethumbnail"] = True
         postprocessors.append({"key": "EmbedThumbnail"})
-    if "metadata" in extras:
-        postprocessors.append({"key": "FFmpegMetadata"})
+    if "sponsorblock" in extras:
+        # Fetch sponsor segments (after_filter so it runs before extraction) and
+        # strip them. A network hiccup or a video with no segments is a no-op.
+        postprocessors.append(
+            {"key": "SponsorBlock", "categories": ["sponsor"], "when": "after_filter"}
+        )
+        postprocessors.append(
+            {"key": "ModifyChapters", "remove_sponsor_segments": ["sponsor"]}
+        )
+    if "metadata" in extras or "chapters" in extras:
+        # One FFmpegMetadata pass carries both tags and embedded chapter markers.
+        postprocessors.append(
+            {
+                "key": "FFmpegMetadata",
+                "add_metadata": "metadata" in extras,
+                "add_chapters": "chapters" in extras,
+            }
+        )
 
     opts["postprocessors"] = postprocessors
     return opts

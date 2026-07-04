@@ -357,6 +357,27 @@ def test_build_ydl_opts_extras():
     assert [pp["key"] for pp in plain["postprocessors"]] == ["FFmpegExtractAudio"]
 
 
+def test_build_ydl_opts_sponsorblock_and_chapters():
+    from routes.main import _build_ydl_opts
+
+    opts = _build_ydl_opts("/d", None, "mp4", "720p", False, None, {"sponsorblock", "chapters"})
+    pps = {pp["key"]: pp for pp in opts["postprocessors"]}
+    assert "SponsorBlock" in pps
+    assert "ModifyChapters" in pps
+    assert pps["ModifyChapters"]["remove_sponsor_segments"] == ["sponsor"]
+    assert pps["FFmpegMetadata"]["add_chapters"] is True
+    assert pps["FFmpegMetadata"]["add_metadata"] is False
+
+
+def test_parse_extras_includes_new_options():
+    from werkzeug.datastructures import MultiDict
+
+    from routes.main import _parse_extras
+
+    form = MultiDict([("opt_sponsorblock", "on"), ("opt_chapters", "on")])
+    assert _parse_extras(form) == {"sponsorblock", "chapters"}
+
+
 def test_parse_extras():
     from werkzeug.datastructures import MultiDict
 

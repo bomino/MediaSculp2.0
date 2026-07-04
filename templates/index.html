@@ -105,6 +105,14 @@
                             <input class="form-check-input" type="checkbox" id="opt_metadata" name="opt_metadata">
                             <label class="form-check-label" for="opt_metadata">Save metadata tags</label>
                         </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="opt_chapters" name="opt_chapters">
+                            <label class="form-check-label" for="opt_chapters">Embed chapter markers</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="opt_sponsorblock" name="opt_sponsorblock">
+                            <label class="form-check-label" for="opt_sponsorblock">Skip sponsor segments (SponsorBlock)</label>
+                        </div>
                     </div>
 
                     <button type="submit" name="action" value="Download Playlist" class="btn btn-primary btn-block">
@@ -419,7 +427,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Remember the last download options across visits.
     (function () {
         const KEY = 'mediasculp_prefs';
-        const fields = ['format', 'quality', 'playlist', 'limit', 'opt_subtitles', 'opt_thumbnail', 'opt_metadata'];
+        const fields = ['format', 'quality', 'playlist', 'limit', 'opt_subtitles', 'opt_thumbnail', 'opt_metadata', 'opt_chapters', 'opt_sponsorblock'];
         try {
             const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
             if (saved.format && formatSelect) {
