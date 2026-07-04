@@ -12,7 +12,7 @@ It ships with a compact interface that has both light and dark themes.
 - **Extras & batch** — optionally embed a thumbnail/cover art, save metadata tags, fetch subtitles, embed chapter markers, and skip sponsor segments ([SponsorBlock](https://sponsor.ajay.app/)); paste several links (one per line) to download them all at once. Your last options are remembered.
 - **Playlists** — download a whole playlist, or cap it to the first N items.
 - **Background downloads** — downloads run in the background and appear in an **Active downloads** panel (on every page) with live per-job progress (streamed over Server-Sent Events, with polling as a fallback) and a **Cancel** button, so a long playlist never freezes the page. Multiple downloads run in parallel up to a configurable limit; the rest queue. Downloaded video IDs are recorded (yt-dlp `download_archive`) so re-runs resume rather than re-download.
-- **Trim clips** — pick a downloaded video and cut a clip by start time and duration.
+- **Trim clips** — pick a downloaded video, scrub the built-in preview and set the start/end from the playhead, then cut. A fast keyframe copy by default, or tick **Precise cut** to re-encode for a frame-accurate clip.
 - **Upload** local video files to trim them.
 - **Manage files** — preview, download, and delete files; instant search (Ctrl+K), sort by name/size/date, filter by type, and real file sizes with at-a-glance counts.
 - **Download history** — every download is recorded to a small SQLite database, so a **History** page lets you search, re-download, and review past downloads even across restarts.
@@ -110,9 +110,10 @@ This adds [pywebview](https://pywebview.flowrl.com/), which uses the platform's 
 4. Click **Start Download**. A progress bar shows real progress (e.g. "Downloading 3/19"); use **Cancel** to stop. Finished files appear on the **Downloads** page.
 
 ### Trim
-1. Open the **Trim** tab and pick a downloaded video.
-2. Enter a start time and duration in seconds (decimals allowed, e.g. `5.5`).
-3. Click **Trim Video**; find the clip on the **Trimmed** page.
+1. Open the **Trim** tab and pick a downloaded video — it loads into a preview player.
+2. Play to the point you want and click **Set start from playhead** / **Set end from playhead**, or type a start time and duration in seconds (decimals allowed, e.g. `5.5`).
+3. Optionally tick **Precise cut** to re-encode for a frame-accurate clip (slower, always MP4); leave it off for a fast keyframe-aligned copy.
+4. Click **Trim Video**; find the clip on the **Trimmed** page.
 
 ### Upload
 Open the **Upload** tab to upload a local video (MP4/MOV/AVI/MKV, up to 500 MB), then switch to **Trim**.

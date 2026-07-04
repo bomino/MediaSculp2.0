@@ -506,6 +506,88 @@ def test_trim_unknown_video_reports_not_found(client):
     assert b"Selected video was not found." in response.data
 
 
+def test_trim_video_fast_uses_stream_copy(monkeypatch):
+    import routes.main as main
+
+    calls = {}
+
+    def fake_extract(inp, start, end, targetname=None):
+        calls.update(inp=inp, start=start, end=end, target=targetname)
+
+    monkeypatch.setattr(main, "ffmpeg_extract_subclip", fake_extract)
+    main.trim_video("in.mp4", "out.mp4", 2.0, 3.0, precise=False)
+    assert calls == {"inp": "in.mp4", "start": 2.0, "end": 5.0, "target": "out.mp4"}
+
+
+def test_trim_video_precise_reencodes(monkeypatch):
+    import moviepy.video.io.VideoFileClip as vfc_mod
+
+    import routes.main as main
+
+    recorded = {}
+
+    class FakeSub:
+        def write_videofile(self, path, **kwargs):
+            recorded["path"] = path
+            recorded["kwargs"] = kwargs
+
+    class FakeClip:
+        duration = 100.0
+
+        def __init__(self, path):
+            recorded["input"] = path
+
+        def subclip(self, start, end):
+            recorded["start"] = start
+            recorded["end"] = end
+            return FakeSub()
+
+        def close(self):
+            recorded["closed"] = True
+
+    monkeypatch.setattr(vfc_mod, "VideoFileClip", FakeClip)
+    main.trim_video("in.mkv", "out.mp4", 1.0, 4.0, precise=True)
+    assert recorded["input"] == "in.mkv"
+    assert recorded["start"] == 1.0
+    assert recorded["end"] == 5.0
+    assert recorded["path"] == "out.mp4"
+    assert recorded["kwargs"]["codec"] == "libx264"
+    assert recorded["closed"] is True
+
+
+def test_trim_precise_outputs_mp4(client, app, monkeypatch):
+    import os
+
+    import routes.main as main
+
+    with open(os.path.join(app.config["DOWNLOAD_FOLDER"], "clip.mkv"), "wb") as handle:
+        handle.write(b"x")
+
+    captured = {}
+
+    def fake_trim(inp, outp, start, dur, precise=False):
+        captured["out"] = outp
+        captured["precise"] = precise
+        with open(outp, "wb") as handle:
+            handle.write(b"y")
+
+    monkeypatch.setattr(main, "trim_video", fake_trim)
+    response = client.post(
+        "/",
+        data={
+            "action": "Trim Video",
+            "video_file": "clip.mkv",
+            "start_time": "1",
+            "duration": "2",
+            "precise": "on",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert captured["precise"] is True
+    assert captured["out"].endswith(".mp4")
+
+
 def test_upload_without_file_flashes(client):
     response = client.post("/upload", data={}, follow_redirects=True)
     assert response.status_code == 200

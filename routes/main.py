@@ -45,11 +45,30 @@ def _get_semaphore(limit):
     return _semaphore
 
 
-def trim_video(input_file_path, output_file_path, start_time, duration):
+def trim_video(input_file_path, output_file_path, start_time, duration, precise=False):
     end_time = start_time + duration
-    ffmpeg_extract_subclip(
-        input_file_path, start_time, end_time, targetname=output_file_path
-    )
+    if not precise:
+        # Fast path: stream copy to the nearest keyframe (no re-encode).
+        ffmpeg_extract_subclip(
+            input_file_path, start_time, end_time, targetname=output_file_path
+        )
+        return
+
+    # Precise path: re-encode so the cut lands on the exact requested frames.
+    from moviepy.video.io.VideoFileClip import VideoFileClip
+
+    clip = VideoFileClip(input_file_path)
+    try:
+        end = min(end_time, clip.duration)
+        clip.subclip(start_time, end).write_videofile(
+            output_file_path,
+            codec="libx264",
+            audio_codec="aac",
+            preset="veryfast",
+            logger=None,
+        )
+    finally:
+        clip.close()
 
 
 def _allowed_upload(filename):
@@ -371,6 +390,7 @@ def _handle_trim(download_folder, trimmed_folder):
     video_file = request.form.get("video_file")
     start_raw = request.form.get("start_time")
     duration_raw = request.form.get("duration")
+    precise = bool(request.form.get("precise"))
 
     if not (video_file and start_raw and duration_raw):
         flash("Please provide a video, start time, and duration.", "danger")
@@ -391,10 +411,12 @@ def _handle_trim(download_folder, trimmed_folder):
         return
 
     base, ext = os.path.splitext(os.path.basename(video_file))
+    if precise:
+        ext = ".mp4"  # re-encoded output is H.264/AAC in an MP4 container
     output_name = unique_name(trimmed_folder, f"{base}_trimmed{ext}")
     output_path = os.path.join(trimmed_folder, output_name)
     try:
-        trim_video(input_path, output_path, start_time, duration)
+        trim_video(input_path, output_path, start_time, duration, precise)
     except Exception:
         current_app.logger.exception("Trim failed for %s", input_path)
         flash("Trimming failed. Please try again.", "danger")

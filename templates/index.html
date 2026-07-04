@@ -153,31 +153,52 @@
                             </div>
                         {% endif %}
                     </div>
-                    
+
+                    <div class="form-group" id="trimPreviewWrap" style="display: none;">
+                        <video id="trimPreview" class="w-100 rounded" controls preload="metadata"
+                               style="max-height: 340px; background: #000;"></video>
+                        <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="setStartBtn">
+                                <i class="fas fa-flag"></i> Set start from playhead
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="setEndBtn">
+                                <i class="fas fa-flag-checkered"></i> Set end from playhead
+                            </button>
+                            <span class="ms-auto small text-muted" id="clipReadout"></span>
+                        </div>
+                    </div>
+
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="start_time" class="form-label">Start Time (seconds)</label>
-                                <input type="number" class="form-control" id="start_time" name="start_time" 
-                                       step="0.1" min="0" placeholder="0" required>
+                                <input type="number" class="form-control" id="start_time" name="start_time"
+                                       step="0.01" min="0" placeholder="0" required>
                                 <div class="help-text">Enter the starting point in seconds</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="duration" class="form-label">Duration (seconds)</label>
-                                <input type="number" class="form-control" id="duration" name="duration" 
-                                       step="0.1" min="0.1" placeholder="10" required>
+                                <input type="number" class="form-control" id="duration" name="duration"
+                                       step="0.01" min="0.01" placeholder="10" required>
                                 <div class="help-text">Length of the trimmed video</div>
                             </div>
                         </div>
                     </div>
-                    
+
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="precise" name="precise">
+                        <label class="form-check-label" for="precise">
+                            Precise cut (re-encode for frame accuracy — slower, always outputs MP4)
+                        </label>
+                    </div>
+
                     <div class="alert alert-info">
                         <i class="fas fa-lightbulb" aria-hidden="true"></i>
-                        Times are in seconds and accept decimals, e.g. 5.5.
+                        Play the preview and use <strong>Set start/end from playhead</strong>, or type seconds directly (decimals allowed, e.g. 5.5). A fast cut copies to the nearest keyframe; tick <strong>Precise cut</strong> for an exact, re-encoded clip.
                     </div>
-                    
+
                     <button type="submit" name="action" value="Trim Video" class="btn btn-success btn-block">
                         <i class="fas fa-cut"></i> Trim Video
                     </button>
@@ -272,6 +293,7 @@ function goToTrimWithFile(filename) {
     const videoSelect = document.getElementById('video_file');
     if (videoSelect) {
         videoSelect.value = filename;
+        videoSelect.dispatchEvent(new Event('change'));
         // Highlight the select to draw attention
         videoSelect.style.border = '2px solid var(--accent)';
         setTimeout(() => {
@@ -369,7 +391,67 @@ document.addEventListener('DOMContentLoaded', function() {
             showLoading('Trimming… this can take a while.');
         });
     }
-    
+
+    // Trim preview + set start/end from the playhead
+    (function () {
+        const select = document.getElementById('video_file');
+        const preview = document.getElementById('trimPreview');
+        const wrap = document.getElementById('trimPreviewWrap');
+        const startInput = document.getElementById('start_time');
+        const durationInput = document.getElementById('duration');
+        const readout = document.getElementById('clipReadout');
+        if (!select || !preview) { return; }
+
+        function fmt(t) { return (Math.round(t * 100) / 100).toFixed(2); }
+
+        function updateReadout() {
+            const s = parseFloat(startInput.value) || 0;
+            const d = parseFloat(durationInput.value) || 0;
+            readout.textContent = d > 0 ? 'Clip: ' + fmt(s) + 's → ' + fmt(s + d) + 's (' + fmt(d) + 's)' : '';
+        }
+
+        function loadPreview() {
+            const name = select.value;
+            if (!name) {
+                wrap.style.display = 'none';
+                preview.removeAttribute('src');
+                preview.load();
+                return;
+            }
+            preview.src = '/download_file/' + encodeURIComponent(name);
+            wrap.style.display = 'block';
+            preview.load();
+        }
+
+        select.addEventListener('change', loadPreview);
+        startInput.addEventListener('input', updateReadout);
+        durationInput.addEventListener('input', updateReadout);
+
+        const setStart = document.getElementById('setStartBtn');
+        const setEnd = document.getElementById('setEndBtn');
+        if (setStart) {
+            setStart.addEventListener('click', function () {
+                startInput.value = fmt(preview.currentTime);
+                updateReadout();
+            });
+        }
+        if (setEnd) {
+            setEnd.addEventListener('click', function () {
+                const s = parseFloat(startInput.value) || 0;
+                const end = preview.currentTime;
+                if (end > s) {
+                    durationInput.value = fmt(end - s);
+                    updateReadout();
+                } else {
+                    alert('Move the playhead past the start point first.');
+                }
+            });
+        }
+
+        if (select.value) { loadPreview(); }
+        updateReadout();
+    })();
+
     // Auto-hide alerts after 5 seconds
     const alerts = document.querySelectorAll('.alert');
     alerts.forEach(alert => {
