@@ -372,6 +372,16 @@ def test_build_ydl_opts_cookies():
     assert "cookiefile" not in plain
 
 
+def test_build_ydl_opts_js_runtime():
+    from routes.main import _build_ydl_opts
+
+    opts = _build_ydl_opts("/d", None, "mp4", "720p", False, None, None, None, "node")
+    assert opts["js_runtimes"] == {"node": {}}
+
+    plain = _build_ydl_opts("/d", None, "mp4", "720p", False)
+    assert "js_runtimes" not in plain
+
+
 def test_build_ydl_opts_sponsorblock_and_chapters():
     from routes.main import _build_ydl_opts
 
@@ -470,6 +480,30 @@ def test_ytdlp_updater_ensure_on_path(tmp_path, monkeypatch):
     finally:
         if str(vendor) in sys.path:
             sys.path.remove(str(vendor))
+
+
+def test_ytdlp_updater_normalize_and_latest_release():
+    from ytdlp_updater import _latest_release, _normalize
+
+    assert _normalize("2026.07.03.234421") == _normalize("2026.7.3.234421.dev0")
+
+    releases = {
+        "2026.6.9": [{"upload_time_iso_8601": "2026-06-09T10:00:00Z", "packagetype": "bdist_wheel", "filename": "yt_dlp-2026.6.9-py3-none-any.whl"}],
+        "2026.7.3.234421.dev0": [{"upload_time_iso_8601": "2026-07-03T23:44:21Z", "packagetype": "bdist_wheel", "filename": "yt_dlp-dev-py3-none-any.whl"}],
+    }
+    version, files = _latest_release(releases)
+    assert version == "2026.7.3.234421.dev0"
+    assert files
+
+
+def test_diagnose_maps_known_signatures():
+    from routes.main import _diagnose
+
+    assert "COOKIES" in _diagnose("ERROR: Sign in to confirm you're not a bot", "d")
+    assert "PO token" in _diagnose("WARNING: Only images are available for download", "d")
+    assert "PO token" in _diagnose("ERROR: Requested format is not available", "d")
+    assert "403" in _diagnose("ERROR: unable to download: HTTP Error 403", "d")
+    assert _diagnose("something unrelated entirely", "fallback message") == "fallback message"
 
 
 def _run_download_with_fake_ydl(app, monkeypatch, fake_cls):

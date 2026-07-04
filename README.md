@@ -22,6 +22,7 @@ It ships with a compact interface that has both light and dark themes.
 
 - **Python 3.10 or newer**
 - **FFmpeg** — used for audio extraction and merging. It's resolved automatically from your `PATH`, and falls back to the FFmpeg binary bundled with `imageio-ffmpeg` (a dependency), so a separate install is optional. Set `FFMPEG_LOCATION` to point at a specific binary if you prefer.
+- **A JavaScript runtime — Node ≥22 or Deno** *(recommended)*. yt-dlp uses it to solve YouTube's challenges and mint PO tokens; without one, many videos return only storyboards (no audio/video). It's auto-detected on `PATH` (override with `YTDLP_JS_RUNTIME`).
 - A modern web browser (Chrome, Firefox, Safari, Edge)
 
 ## Quick start
@@ -65,7 +66,9 @@ Copy `.env.example` to `.env` and adjust. Everything is optional with safe defau
 | `MAX_UPLOAD_BYTES` | `524288000` (500 MB) | Maximum upload size. |
 | `MAX_CONCURRENT_DOWNLOADS` | `3` | How many downloads run at once; extras queue. |
 | `MIN_FREE_BYTES` | `209715200` (200 MB) | Refuse to start a download below this free space (0 disables). |
-| `AUTO_UPDATE_YTDLP` | `0` | If `1`, run `pip install -U yt-dlp` at startup (restart to load). |
+| `AUTO_UPDATE_YTDLP` | `0` | If `1`, update yt-dlp at startup (restart to load). |
+| `YTDLP_NIGHTLY` | `0` | If `1`, track yt-dlp's nightly channel — ships YouTube fixes days ahead of stable. |
+| `YTDLP_JS_RUNTIME` | auto | JS runtime for yt-dlp's PO-token solver (`node`/`deno` or a path); blank = auto-detect on PATH. |
 | `AUTH_PASSWORD` | _(unset)_ | If set, gate the whole app behind a single-password login. Blank = no auth. |
 | `COOKIES_FROM_BROWSER` | _(unset)_ | Read YouTube cookies from this browser (`firefox`/`chrome`/`edge`/…) to pass "not a bot" checks. |
 | `COOKIES_FILE` | _(unset)_ | Path to an exported `cookies.txt` — an alternative to `COOKIES_FROM_BROWSER`. |
@@ -126,7 +129,9 @@ This produces `dist/MediaSculp/` containing `MediaSculp.exe` (Windows). ffmpeg a
 4. For a playlist URL, optionally set a **Playlist limit** to grab only the first N items.
 4. Click **Start Download**. A progress bar shows real progress (e.g. "Downloading 3/19"); use **Cancel** to stop. Finished files appear on the **Downloads** page.
 
-> **"Sign in to confirm you're not a bot"?** YouTube gates some videos behind a login. Set `COOKIES_FROM_BROWSER` (e.g. `firefox`) — or `COOKIES_FILE` to an exported `cookies.txt` — in your `.env` so yt-dlp can use your YouTube session. On Windows, Chrome/Edge lock their cookie database while running, so Firefox tends to work best.
+> **Download fails on a YouTube video?** The app now translates the common causes into guidance in the progress panel:
+> - *"Sign in to confirm you're not a bot"* → set `COOKIES_FROM_BROWSER` (e.g. `firefox`) or `COOKIES_FILE` (an exported `cookies.txt`). On Windows, Chrome/Edge lock their cookie DB while running, so Firefox tends to work best.
+> - *Only storyboards / "Requested format is not available"* → the streams are PO-token/SABR-gated. Make sure a **JS runtime** (Node ≥22 or Deno) is installed and set **`YTDLP_NIGHTLY=1`** — nightly yt-dlp plus a JS runtime is what unlocks these.
 
 ### Trim
 1. Open the **Trim** tab and pick a downloaded video — it loads into a preview player.

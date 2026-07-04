@@ -13,7 +13,7 @@ hiddenimports = ["waitress", "clr"]
 # yt-dlp loads extractors dynamically, moviepy/imageio carry data files, and the
 # imageio-ffmpeg binary must ride along so downloads and trims work with no
 # separate ffmpeg install. pywebview needs its platform backend + interop DLLs.
-for package in ("yt_dlp", "moviepy", "imageio", "imageio_ffmpeg", "webview"):
+for package in ("yt_dlp", "yt_dlp_ejs", "moviepy", "imageio", "imageio_ffmpeg", "webview"):
     pkg_datas, pkg_binaries, pkg_hidden = collect_all(package)
     datas += pkg_datas
     binaries += pkg_binaries

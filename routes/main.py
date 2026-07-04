@@ -117,7 +117,7 @@ def _parse_extras(form):
     return {name for name in EXTRA_OPTIONS if form.get("opt_" + name)}
 
 
-def _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit=None, extras=None, cookies=None):
+def _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit=None, extras=None, cookies=None, js_runtime=None):
     extras = extras or set()
     opts = {
         "outtmpl": os.path.join(download_folder, "%(title)s.%(ext)s"),
@@ -136,6 +136,10 @@ def _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, pl
             opts["cookiesfrombrowser"] = (cookies["browser"],)
         if cookies.get("file"):
             opts["cookiefile"] = cookies["file"]
+    if js_runtime:
+        # yt-dlp defaults to deno; name the available runtime so its nsig /
+        # PO-token solver actually runs (else YouTube returns storyboards only).
+        opts["js_runtimes"] = {js_runtime: {}}
 
     postprocessors = []
     if format_choice == "mp4":
@@ -285,7 +289,44 @@ def _record(db_path, job_id, status, error):
         pass  # history is best-effort; never fail a download over it
 
 
-def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, quality, playlist_wanted, limit, extras, max_concurrent, db_path, logger, cookies=None):
+class _CaptureLogger:
+    """A yt-dlp logger that records warning/error lines so a failed job can be
+    diagnosed into an actionable message. Debug/info are dropped."""
+
+    def __init__(self):
+        self.messages = []
+
+    def debug(self, msg):
+        pass
+
+    def info(self, msg):
+        pass
+
+    def warning(self, msg):
+        self.messages.append(str(msg))
+
+    def error(self, msg):
+        self.messages.append(str(msg))
+
+
+def _diagnose(text, default):
+    """Map known yt-dlp failure signatures to actionable guidance."""
+    low = text.lower()
+    if "not a bot" in low or "sign in to confirm" in low:
+        return "YouTube wants sign-in for this video. Set COOKIES_FROM_BROWSER or COOKIES_FILE."
+    if "only images are available" in low or "requested format is not available" in low or "sabr" in low:
+        return (
+            "This video's streams are gated (PO token / SABR). Ensure a JS runtime "
+            "(Node >=22 or Deno) is available and use nightly yt-dlp (YTDLP_NIGHTLY=1)."
+        )
+    if "http error 403" in low or "403: forbidden" in low:
+        return "Access blocked (HTTP 403). Update yt-dlp or try again later."
+    if "video unavailable" in low or "private video" in low or "has been removed" in low:
+        return "The video is unavailable (private, removed, or region-blocked)."
+    return default
+
+
+def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, quality, playlist_wanted, limit, extras, max_concurrent, db_path, logger, cookies=None, js_runtime=None):
     semaphore = _get_semaphore(max_concurrent)
     semaphore.acquire()
     try:
@@ -298,9 +339,11 @@ def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, 
             return
         _update_job(job_id, status="running", message="Starting…")
 
-        opts = _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit, extras, cookies)
+        capture = _CaptureLogger()
+        opts = _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit, extras, cookies, js_runtime)
         opts["progress_hooks"] = [_make_progress_hook(job_id)]
         opts["postprocessor_hooks"] = [_make_pp_hook(job_id)]
+        opts["logger"] = capture
         opts["quiet"] = True
         opts["no_warnings"] = True
         try:
@@ -310,14 +353,14 @@ def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, 
             _update_job(job_id, status="cancelled", message="Download cancelled.")
             _record(db_path, job_id, "cancelled", None)
             return
-        except Exception:
+        except Exception as exc:
             logger.exception("Download failed for %s", url)
-            _update_job(
-                job_id,
-                status="error",
-                message="Download failed. Check that the URL is valid and try again.",
+            message = _diagnose(
+                " ".join([str(exc)] + capture.messages),
+                "Download failed. Check that the URL is valid and try again.",
             )
-            _record(db_path, job_id, "error", "Download failed.")
+            _update_job(job_id, status="error", message=message)
+            _record(db_path, job_id, "error", message)
             return
 
         with _jobs_lock:
@@ -328,12 +371,12 @@ def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, 
         # non-zero code instead of raising. If nothing was produced, the job
         # really failed — don't report it as a completed download.
         if retcode and not produced:
-            _update_job(
-                job_id,
-                status="error",
-                message="Nothing was downloaded — the video may be unavailable or blocked.",
+            message = _diagnose(
+                " ".join(capture.messages),
+                "Nothing was downloaded — the video may be unavailable or blocked.",
             )
-            _record(db_path, job_id, "error", "Nothing downloaded")
+            _update_job(job_id, status="error", message=message)
+            _record(db_path, job_id, "error", message)
             return
 
         with _jobs_lock:
@@ -362,6 +405,7 @@ def _launch_download(url, format_choice, quality, playlist_wanted, limit, extras
     cookie_file = current_app.config.get("COOKIES_FILE")
     if browser or cookie_file:
         cookies = {"browser": browser, "file": cookie_file}
+    js_runtime = current_app.config.get("JS_RUNTIME")
 
     min_free = current_app.config.get("MIN_FREE_BYTES", 0)
     if min_free:
@@ -391,6 +435,7 @@ def _launch_download(url, format_choice, quality, playlist_wanted, limit, extras
             db_path,
             logger,
             cookies,
+            js_runtime,
         ),
         daemon=True,
     )

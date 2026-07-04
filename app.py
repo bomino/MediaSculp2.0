@@ -97,13 +97,20 @@ def _ytdlp_startup(app):
     except Exception:
         return
 
+    runtime = app.config.get("JS_RUNTIME")
+    if runtime:
+        print(f" * JS runtime for yt-dlp: {runtime}")
+    else:
+        print(" * JS runtime for yt-dlp: none — some YouTube videos will fail (install Node >=22 or Deno)")
+
+    nightly = bool(app.config.get("YTDLP_NIGHTLY"))
     if getattr(sys, "frozen", False):
         # A bundled yt-dlp can't be pip-upgraded, so refresh a user-writable
         # copy in the background (loaded on the next launch) to avoid rot.
         import threading
 
         def refresh():
-            new_version = ytdlp_updater.update_ytdlp(current)
+            new_version = ytdlp_updater.update_ytdlp(current, nightly=nightly)
             if new_version:
                 print(f" * yt-dlp updated to {new_version}; restart to load it.")
 
@@ -111,13 +118,14 @@ def _ytdlp_startup(app):
     elif app.config.get("AUTO_UPDATE_YTDLP"):
         import subprocess
 
+        channel = "nightly" if nightly else "stable"
+        args = [sys.executable, "-m", "pip", "install", "-U", "--quiet"]
+        if nightly:
+            args.append("--pre")
+        args.append("yt-dlp[default]")
         try:
-            print(" * AUTO_UPDATE_YTDLP set — running pip install -U yt-dlp")
-            subprocess.run(
-                [sys.executable, "-m", "pip", "install", "-U", "--quiet", "yt-dlp"],
-                check=False,
-                timeout=180,
-            )
+            print(f" * AUTO_UPDATE_YTDLP set — updating yt-dlp ({channel})")
+            subprocess.run(args, check=False, timeout=180)
             print(" * yt-dlp update attempted; restart to load the new version.")
         except Exception:
             app.logger.exception("yt-dlp auto-update failed")

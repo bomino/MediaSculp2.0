@@ -29,4 +29,6 @@ websockets==13.1
 waitress==3.0.2
 Werkzeug==3.0.4
 # yt-dlp must stay current: stale versions break against YouTube's player/signature changes.
-yt-dlp>=2025.6.0
+# The [default] extra pulls yt-dlp-ejs (the JS challenge / PO-token solver) which,
+# with a Node>=22 or Deno runtime, is what lets hardened YouTube videos download.
+yt-dlp[default]>=2025.6.0

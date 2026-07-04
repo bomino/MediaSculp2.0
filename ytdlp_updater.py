@@ -28,15 +28,35 @@ def ensure_on_path():
 
 
 def _normalize(version):
-    """yt-dlp reports dates as '2026.06.09' but PyPI normalizes to '2026.6.9';
-    compare them numerically so an identical version isn't re-downloaded."""
-    try:
-        return tuple(int(part) for part in version.split("."))
-    except (AttributeError, ValueError):
-        return version
+    """Compare versions numerically. yt-dlp reports dates as '2026.06.09' but
+    PyPI normalizes to '2026.6.9', and nightlies add a '.dev0' suffix; take the
+    leading numeric components so equivalent versions aren't re-downloaded."""
+    parts = []
+    for part in str(version).split("."):
+        if part.isdigit():
+            parts.append(int(part))
+        else:
+            break
+    return tuple(parts) if parts else str(version)
 
 
-def update_ytdlp(current_version=None, timeout=120):
+def _latest_release(releases):
+    """Return (version, files) for the most recently uploaded release, including
+    pre-releases (nightlies), based on file upload timestamps."""
+    best_version = None
+    best_time = ""
+    for version, files in releases.items():
+        for entry in files:
+            if entry.get("yanked"):
+                continue
+            uploaded = entry.get("upload_time_iso_8601") or entry.get("upload_time") or ""
+            if uploaded > best_time:
+                best_time = uploaded
+                best_version = version
+    return best_version, releases.get(best_version, [])
+
+
+def update_ytdlp(current_version=None, timeout=120, nightly=False):
     """Fetch the latest yt-dlp wheel from PyPI into the vendor dir.
 
     Returns the new version string when a fresh copy is written, or None when
@@ -53,13 +73,21 @@ def update_ytdlp(current_version=None, timeout=120):
     try:
         with urllib.request.urlopen("https://pypi.org/pypi/yt-dlp/json", timeout=30) as resp:
             meta = json.load(resp)
-        version = meta["info"]["version"]
+
+        releases = meta.get("releases", {})
+        if nightly:
+            version, files = _latest_release(releases)
+        else:
+            version = meta["info"]["version"]
+            files = releases.get(version) or meta.get("urls", [])
+        if not version:
+            return None
         if current_version and _normalize(version) == _normalize(current_version):
             return None
 
         wheels = [
-            u for u in meta["urls"]
-            if u.get("packagetype") == "bdist_wheel" and u["filename"].endswith("py3-none-any.whl")
+            entry for entry in files
+            if entry.get("packagetype") == "bdist_wheel" and entry["filename"].endswith("py3-none-any.whl")
         ]
         if not wheels:
             return None

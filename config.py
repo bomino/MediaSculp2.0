@@ -28,6 +28,31 @@ def _env_bool(name, default=False):
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _resolve_js_runtime():
+    """Pick a JavaScript runtime for yt-dlp's challenge / PO-token solver.
+
+    Newer yt-dlp needs Node >=22 or Deno to descramble YouTube's nsig and mint
+    PO tokens; without one, extraction silently degrades to storyboard-only.
+    yt-dlp defaults to deno, so a machine with only Node still fails unless the
+    runtime is named explicitly. Honors YTDLP_JS_RUNTIME (a name like
+    'node'/'deno' or a path to the binary), else prefers deno then node on PATH.
+    Returns the runtime name, or None.
+    """
+    override = os.environ.get("YTDLP_JS_RUNTIME")
+    if override:
+        looks_like_path = os.sep in override or bool(os.altsep and os.altsep in override) or os.path.exists(override)
+        if looks_like_path:
+            directory = os.path.dirname(override)
+            if directory:
+                os.environ["PATH"] = directory + os.pathsep + os.environ.get("PATH", "")
+            return os.path.splitext(os.path.basename(override))[0].lower() or None
+        return override.lower()
+    for name in ("deno", "node"):
+        if shutil.which(name):
+            return name
+    return None
+
+
 def _resolve_ffmpeg():
     """Locate ffmpeg for yt-dlp: explicit override, then PATH, then the
     imageio-ffmpeg bundled binary (already a dependency), else None."""
@@ -58,6 +83,10 @@ class Config:
     # bundled binary, so downloads work without a separate ffmpeg install.
     FFMPEG_LOCATION = _resolve_ffmpeg()
 
+    # JS runtime name for yt-dlp's challenge / PO-token solver. Without one,
+    # many YouTube videos return only storyboards (no audio/video).
+    JS_RUNTIME = _resolve_js_runtime()
+
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_UPLOAD_BYTES", 500 * 1024 * 1024))
 
     # How many downloads may run at once; the rest are queued.
@@ -69,6 +98,11 @@ class Config:
 
     # When true, attempt `pip install -U yt-dlp` at startup (needs a restart to load).
     AUTO_UPDATE_YTDLP = _env_bool("AUTO_UPDATE_YTDLP", False)
+
+    # Track yt-dlp's nightly channel instead of stable. Nightly ships YouTube
+    # fixes days ahead of tagged releases — often the difference between a video
+    # downloading and returning storyboards.
+    YTDLP_NIGHTLY = _env_bool("YTDLP_NIGHTLY", False)
 
     # Optional single-password gate. When set, every page requires logging in
     # first — useful before exposing the app beyond localhost. Empty = no auth.
