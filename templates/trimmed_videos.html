@@ -23,8 +23,8 @@
                     <span class="input-group-text">
                         <i class="fas fa-search"></i>
                     </span>
-                    <input type="text" id="searchInput" class="form-control" 
-                           placeholder="Search videos by name..." onkeyup="searchFiles()">
+                    <input type="text" id="searchInput" class="form-control" aria-label="Search videos by name"
+                           placeholder="Search videos by name..." onkeyup="FileManager.searchFiles(this)">
                 </div>
             </div>
             <div class="col-md-6 text-end">
@@ -97,13 +97,13 @@
                         </td>
                         <td>
                             <div class="btn-group" role="group">
-                                <a href="{{ url_for('downloads.download_trimmed', filename=file) }}" 
-                                   class="btn btn-sm btn-primary" title="Download" download>
-                                    <i class="fas fa-download"></i>
+                                <a href="{{ url_for('downloads.download_trimmed', filename=file) }}"
+                                   class="btn btn-sm btn-primary" title="Download" aria-label="Download {{ file }}" download>
+                                    <i class="fas fa-download" aria-hidden="true"></i>
                                 </a>
-                                <button onclick="showDeleteConfirm('{{ file | replace("'", "\\'")|safe }}')"
-                                        class="btn btn-sm btn-danger" title="Delete">
-                                    <i class="fas fa-trash"></i>
+                                <button type="button" class="btn btn-sm btn-danger js-delete" data-filename="{{ file }}"
+                                        title="Delete" aria-label="Delete {{ file }}">
+                                    <i class="fas fa-trash" aria-hidden="true"></i>
                                 </button>
                             </div>
                         </td>
@@ -131,58 +131,46 @@
 <div class="card mt-4">
     <div class="card-body">
         <div class="row text-center">
-            <div class="col-md-3">
-                <i class="fas fa-scissors text-primary" style="font-size: 2rem;"></i>
-                <h6 class="mt-2">Total Trimmed</h6>
-                <p class="text-muted mb-0" id="totalCount">{{ files|length }}</p>
+            <div class="col-md-3 stat">
+                <i class="fas fa-scissors" aria-hidden="true"></i>
+                <h6>Total trimmed</h6>
+                <p class="mb-0" id="totalCount">{{ files|length }}</p>
             </div>
-            <div class="col-md-3">
-                <i class="fas fa-hdd text-success" style="font-size: 2rem;"></i>
-                <h6 class="mt-2">Total Size</h6>
-                <p class="text-muted mb-0" id="totalSize">Calculating...</p>
+            <div class="col-md-3 stat">
+                <i class="fas fa-hdd" aria-hidden="true"></i>
+                <h6>Total size</h6>
+                <p class="mb-0" id="totalSize">Calculating…</p>
             </div>
-            <div class="col-md-3">
-                <i class="fas fa-file-video text-warning" style="font-size: 2rem;"></i>
-                <h6 class="mt-2">MP4 Files</h6>
-                <p class="text-muted mb-0" id="mp4Count">0</p>
+            <div class="col-md-3 stat">
+                <i class="fas fa-file-video" aria-hidden="true"></i>
+                <h6>MP4 files</h6>
+                <p class="mb-0" id="mp4Count">0</p>
             </div>
-            <div class="col-md-3">
-                <i class="fas fa-film text-info" style="font-size: 2rem;"></i>
-                <h6 class="mt-2">Other Formats</h6>
-                <p class="text-muted mb-0" id="otherFormatCount">0</p>
+            <div class="col-md-3 stat">
+                <i class="fas fa-film" aria-hidden="true"></i>
+                <h6>Other formats</h6>
+                <p class="mb-0" id="otherFormatCount">0</p>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Custom Delete Modal (without Bootstrap JS) -->
-<div id="customDeleteModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999;">
-    <!-- Backdrop -->
-    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);" 
-         onclick="hideDeleteConfirm()"></div>
-    
-    <!-- Modal -->
-    <div style="position: relative; max-width: 500px; margin: 100px auto; background: white; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.5);">
-        <div style="padding: 20px; border-bottom: 1px solid #dee2e6;">
-            <h5 style="margin: 0; color: #333;">
-                <i class="fas fa-exclamation-triangle" style="color: #ffc107;"></i> Confirm Deletion
-            </h5>
+<!-- Custom delete modal (no Bootstrap JS) -->
+<div id="customDeleteModal" class="confirm-modal" style="display: none;">
+    <div class="confirm-modal__backdrop" onclick="FileManager.hideDeleteConfirm()"></div>
+    <div class="confirm-modal__dialog">
+        <div class="confirm-modal__header">
+            <i class="fas fa-exclamation-triangle" aria-hidden="true"></i> Confirm deletion
         </div>
-        <div style="padding: 20px;">
-            <p>Are you sure you want to delete this trimmed video?</p>
-            <p style="color: #6c757d; font-size: 0.875rem; margin-bottom: 0;">
-                This action cannot be undone.
-            </p>
+        <div class="confirm-modal__body">
+            Delete this trimmed video? This can't be undone.
         </div>
-        <div style="padding: 20px; border-top: 1px solid #dee2e6; text-align: right;">
-            <button onclick="hideDeleteConfirm()" 
-                    style="padding: 8px 16px; margin-right: 10px; border: 1px solid #6c757d; background: #6c757d; color: white; border-radius: 4px; cursor: pointer;">
-                <i class="fas fa-times"></i> Cancel
+        <div class="confirm-modal__footer">
+            <button type="button" class="btn btn-secondary" onclick="FileManager.hideDeleteConfirm()">
+                <i class="fas fa-times" aria-hidden="true"></i> Cancel
             </button>
-            <button onclick="confirmDelete()" 
-                    id="customConfirmBtn"
-                    style="padding: 8px 16px; border: 1px solid #dc3545; background: #dc3545; color: white; border-radius: 4px; cursor: pointer;">
-                <i class="fas fa-trash"></i> Delete Video
+            <button type="button" class="btn btn-danger" id="customConfirmBtn" onclick="FileManager.confirmDelete()">
+                <i class="fas fa-trash" aria-hidden="true"></i> Delete video
             </button>
         </div>
     </div>
@@ -191,161 +179,34 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='file-manager.js') }}"></script>
 <script>
-    let filenameToDelete = '';
+    FileManager.init({ deletePrefix: '/delete_trimmed_video/', itemNoun: 'video' });
 
-    // Initialize on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        updateVideoStats();
-        
-        // Clean up any stuck Bootstrap modals/backdrops on page load
-        cleanupBootstrapModals();
-    });
-    
-    function cleanupBootstrapModals() {
-        // Remove any stuck modal backdrops
-        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-        // Remove modal-open class from body
-        document.body.classList.remove('modal-open');
-        // Reset body styles
-        document.body.style.overflow = '';
-        document.body.style.paddingRight = '';
-    }
-
-    function showDeleteConfirm(filename) {
-        filenameToDelete = filename;
-        
-        // Clean up any Bootstrap modals first
-        cleanupBootstrapModals();
-        
-        // Show our custom modal
-        document.getElementById('customDeleteModal').style.display = 'block';
-        document.body.style.overflow = 'hidden';
-    }
-    
-    function hideDeleteConfirm() {
-        document.getElementById('customDeleteModal').style.display = 'none';
-        document.body.style.overflow = '';
-        filenameToDelete = '';
-    }
-    
-    function confirmDelete() {
-        if (!filenameToDelete) {
-            return;
-        }
-        
-        // Build the URL BEFORE hiding modal (which resets filenameToDelete)
-        const deleteUrl = '/delete_trimmed_video/' + encodeURIComponent(filenameToDelete);
-        
-        // NOW hide modal
-        hideDeleteConfirm();
-        
-        fetch(deleteUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                if (response.status === 404) {
-                    throw new Error('Video not found on server');
-                }
-                throw new Error('Server error: ' + response.status);
-            }
-            // Try to parse as JSON, but handle if it's not JSON
-            return response.text().then(text => {
-                try {
-                    return JSON.parse(text);
-                } catch (e) {
-                    // If not JSON, assume success if status was OK
-                    return { success: response.ok };
-                }
-            });
-        })
-        .then(data => {
-            if (data.success) {
-                showAlert('Video deleted successfully!', 'success');
-                setTimeout(() => location.reload(), 1000);
-            } else {
-                showAlert('Error: ' + (data.error || 'Failed to delete video'), 'danger');
-            }
-        })
-        .catch(error => {
-            showAlert(error.message || 'Failed to delete video', 'danger');
-        });
-    }
-
-    function updateVideoStats() {
+    window.updateStats = function () {
         const rows = document.querySelectorAll('#fileTable tbody tr');
-        let mp4Count = 0;
-        let otherCount = 0;
-        let totalSize = 0;
-        let visibleRows = 0;
-        
+        let mp4Count = 0, otherCount = 0, totalSize = 0, visibleRows = 0;
+
         rows.forEach(row => {
-            if (row.style.display !== 'none') {
-                visibleRows++;
-                const filename = row.querySelector('td:first-child span');
-                if (filename) {
-                    const file = filename.textContent.trim();
-                    if (file.match(/\.mp4$/i)) {
-                        mp4Count++;
-                        totalSize += 30;
-                    } else if (file.match(/\.(avi|mov|mkv)$/i)) {
-                        otherCount++;
-                        totalSize += 40;
-                    }
-                }
+            if (row.style.display === 'none') { return; }
+            visibleRows++;
+            const span = row.querySelector('td:first-child span');
+            const file = span ? span.textContent.trim() : '';
+            if (file.match(/\.mp4$/i)) {
+                mp4Count++; totalSize += 30;
+            } else if (file.match(/\.(avi|mov|mkv)$/i)) {
+                otherCount++; totalSize += 40;
             }
         });
-        
+
         document.getElementById('mp4Count').textContent = mp4Count;
         document.getElementById('otherFormatCount').textContent = otherCount;
         document.getElementById('totalCount').textContent = visibleRows;
-        
-        let sizeText = totalSize > 1024 ? 
-            (totalSize / 1024).toFixed(1) + ' GB' : 
-            totalSize + ' MB';
-        
+
+        const sizeText = totalSize > 1024
+            ? (totalSize / 1024).toFixed(1) + ' GB'
+            : totalSize + ' MB';
         document.getElementById('totalSize').textContent = visibleRows > 0 ? '~' + sizeText : '0 MB';
-    }
-
-    function showAlert(message, type) {
-        const alertContainer = document.getElementById('alertContainer');
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-        alertDiv.innerHTML = `
-            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        alertContainer.appendChild(alertDiv);
-        
-        setTimeout(() => alertDiv.remove(), 5000);
-    }
-
-    function searchFiles() {
-        const input = document.getElementById('searchInput');
-        const filter = input.value.toLowerCase();
-        const rows = document.querySelectorAll('#fileTable tbody tr');
-        let visibleCount = 0;
-
-        rows.forEach(row => {
-            const filename = row.querySelector('td:first-child span');
-            if (filename) {
-                const text = filename.textContent.toLowerCase();
-                if (text.includes(filter)) {
-                    row.style.display = '';
-                    visibleCount++;
-                } else {
-                    row.style.display = 'none';
-                }
-            }
-        });
-        
-        document.getElementById('fileCount').textContent = visibleCount;
-        updateVideoStats();
-    }
+    };
 </script>
 {% endblock %}

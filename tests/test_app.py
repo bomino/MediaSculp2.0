@@ -1,0 +1,245 @@
+import os
+
+from app import create_app
+from config import Config
+from routes.main import _audio_quality, _video_format
+from utils import list_files, resolve_within, unique_name
+
+
+def test_pages_render(client):
+    for path in ("/", "/downloads", "/trimmed_videos"):
+        assert client.get(path).status_code == 200
+
+
+def test_home_has_csrf_meta(client):
+    assert b'name="csrf-token"' in client.get("/").data
+
+
+def test_upload_get_redirects_home(client):
+    response = client.get("/upload")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/")
+
+
+def test_delete_traversal_reaches_view_and_is_refused(client, app):
+    # Backslash-encoded traversal: the <path> converter passes it to the view,
+    # where resolve_within (safe_join) rejects it with 400.
+    response = client.post("/delete_file/..%5C..%5C..%5Csecret.txt")
+    assert response.status_code in (400, 404)
+    body = response.get_json()
+    assert body is None or body.get("success") is False
+
+
+def test_delete_real_file_succeeds(client, app):
+    folder = app.config["DOWNLOAD_FOLDER"]
+    target = os.path.join(folder, "clip.mp4")
+    open(target, "w").close()
+
+    response = client.post("/delete_file/clip.mp4")
+    assert response.status_code == 200
+    assert response.get_json()["success"] is True
+    assert not os.path.exists(target)
+
+
+def test_delete_missing_file_returns_404(client):
+    response = client.post("/delete_file/nope.mp4")
+    assert response.status_code == 404
+
+
+def test_download_traversal_returns_404(client):
+    assert client.get("/download_file/..%5C..%5Csecret.txt").status_code == 404
+
+
+def test_csrf_enforced_when_enabled(tmp_path):
+    class Cfg(Config):
+        WTF_CSRF_ENABLED = True
+        SECRET_KEY = "unit-test"
+        DOWNLOAD_FOLDER = str(tmp_path / "d")
+        TRIMMED_FOLDER = str(tmp_path / "t")
+
+    client = create_app(Cfg).test_client()
+    response = client.post("/delete_file/whatever.mp4")
+    assert response.status_code in (400, 403)
+
+
+def test_resolve_within_blocks_traversal():
+    base = os.path.abspath("base")
+    assert resolve_within(base, "..\\x") is None
+    assert resolve_within(base, "../x") is None
+    assert resolve_within(base, "C:\\Windows\\win.ini") is None
+    assert resolve_within(base, "") is None
+    assert resolve_within(base, "clip.mp4") is not None
+
+
+def test_unique_name(tmp_path):
+    directory = str(tmp_path)
+    assert unique_name(directory, "a.mp4") == "a.mp4"
+    open(os.path.join(directory, "a.mp4"), "w").close()
+    assert unique_name(directory, "a.mp4") == "a_1.mp4"
+
+
+def test_list_files_filters_hidden_dirs_and_extensions(tmp_path):
+    directory = str(tmp_path)
+    for name in ("v.mp4", "a.mp3", ".hidden", "note.txt"):
+        open(os.path.join(directory, name), "w").close()
+    os.mkdir(os.path.join(directory, "sub"))
+
+    videos = list_files(directory, {"mp4", "mov", "avi", "mkv"})
+    assert videos == ["v.mp4"]
+
+    everything = list_files(directory)
+    assert ".hidden" not in everything
+    assert "sub" not in everything
+    assert "note.txt" in everything
+
+
+def test_video_format_binds_filters_correctly():
+    assert _video_format("best") == (
+        "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+    )
+    assert "height<=720" in _video_format("720p")
+    assert "height" not in _video_format(None)
+
+
+def test_audio_quality_mapping():
+    assert _audio_quality("320") == "320"
+    assert _audio_quality("best") == "0"
+    assert _audio_quality("high") == "192"
+    assert _audio_quality(None) == "192"
+
+
+def test_parse_limit():
+    from routes.main import _parse_limit
+
+    assert _parse_limit("3") == 3
+    assert _parse_limit("") is None
+    assert _parse_limit(None) is None
+    assert _parse_limit("0") is None
+    assert _parse_limit("-2") is None
+    assert _parse_limit("abc") is None
+
+
+def test_build_ydl_opts_limit_and_playlist():
+    from routes.main import _build_ydl_opts
+
+    limited = _build_ydl_opts("/d", None, "mp3", "192", playlist_wanted=False, limit=3)
+    assert limited["playlist_items"] == "1:3"
+    assert limited["noplaylist"] is False
+
+    plain = _build_ydl_opts("/d", None, "mp3", "192", playlist_wanted=False, limit=None)
+    assert plain["noplaylist"] is True
+    assert "playlist_items" not in plain
+
+    whole = _build_ydl_opts("/d", None, "mp4", "720p", playlist_wanted=True, limit=None)
+    assert whole["noplaylist"] is False
+    assert whole["merge_output_format"] == "mp4"
+
+
+def test_cancel_download(client, monkeypatch):
+    import routes.main as main
+
+    monkeypatch.setattr(main, "_run_download", lambda *a, **k: None)
+    response = client.post(
+        "/", data={"action": "Download Playlist", "url": "https://example.com/v"}
+    )
+    job_id = response.headers["Location"].split("job=")[1].split("&")[0]
+
+    cancel = client.post("/cancel_download/" + job_id)
+    assert cancel.status_code == 200
+    assert cancel.get_json()["success"] is True
+
+    status = client.get("/download_status/" + job_id).get_json()
+    assert status["cancel"] is True
+    assert client.post("/cancel_download/does-not-exist").status_code == 404
+
+
+def test_list_files_skips_partial_downloads(tmp_path):
+    directory = str(tmp_path)
+    for name in ("done.mp3", "half.webm.part", "frag.ytdl"):
+        open(os.path.join(directory, name), "w").close()
+    files = list_files(directory)
+    assert "done.mp3" in files
+    assert "half.webm.part" not in files
+    assert "frag.ytdl" not in files
+
+
+def test_download_without_url_flashes_and_redirects(client):
+    response = client.post(
+        "/", data={"action": "Download Playlist", "url": ""}, follow_redirects=True
+    )
+    assert response.status_code == 200
+    assert b"Please enter a video URL." in response.data
+
+
+def test_download_starts_background_job_and_redirects(client, monkeypatch):
+    import routes.main as main
+
+    monkeypatch.setattr(main, "_run_download", lambda *a, **k: None)
+    response = client.post(
+        "/", data={"action": "Download Playlist", "url": "https://example.com/v"}
+    )
+    assert response.status_code == 302
+    assert "job=" in response.headers["Location"]
+
+
+def test_download_status_endpoint(client, monkeypatch):
+    import routes.main as main
+
+    monkeypatch.setattr(main, "_run_download", lambda *a, **k: None)
+    response = client.post(
+        "/", data={"action": "Download Playlist", "url": "https://example.com/v"}
+    )
+    job_id = response.headers["Location"].split("job=")[1].split("&")[0]
+    status = client.get("/download_status/" + job_id)
+    assert status.status_code == 200
+    assert status.get_json()["id"] == job_id
+    assert client.get("/download_status/does-not-exist").status_code == 404
+
+
+def test_trim_missing_fields_flashes(client):
+    response = client.post(
+        "/", data={"action": "Trim Video"}, follow_redirects=True
+    )
+    assert response.status_code == 200
+    assert b"Please provide a video" in response.data
+
+
+def test_trim_unknown_video_reports_not_found(client):
+    response = client.post(
+        "/",
+        data={
+            "action": "Trim Video",
+            "video_file": "does-not-exist.mp4",
+            "start_time": "0",
+            "duration": "5",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"Selected video was not found." in response.data
+
+
+def test_upload_without_file_flashes(client):
+    response = client.post("/upload", data={}, follow_redirects=True)
+    assert response.status_code == 200
+    assert b"No file selected." in response.data
+
+
+def test_downloads_list_uses_safe_delete_markup(client, app):
+    folder = app.config["DOWNLOAD_FOLDER"]
+    open(os.path.join(folder, "clip.mp4"), "w").close()
+    html = client.get("/downloads").data
+    assert b'class="btn btn-sm btn-danger js-delete"' in html
+    assert b'data-filename="clip.mp4"' in html
+    # the old injection-prone inline handler must be gone
+    assert b"showDeleteConfirm('" not in html
+    assert b"file-manager.js" in html
+
+
+def test_uploaded_file_query_param_is_escaped_in_js(client):
+    payload = "</script><img src=x onerror=alert(1)>"
+    response = client.get("/", query_string={"uploaded_file": payload, "show_trim": "1"})
+    assert response.status_code == 200
+    # tojson escapes the HTML metacharacters, so the raw breakout markup never appears.
+    assert b"<img src=x onerror" not in response.data
+    assert b"</script><img" not in response.data

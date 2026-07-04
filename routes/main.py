@@ -1,130 +1,342 @@
 import os
-import yt_dlp
-from flask import Blueprint, render_template, request, redirect, url_for, flash
-from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
+import re
+import threading
+import uuid
 from datetime import datetime
+
+import yt_dlp
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
+from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 from werkzeug.utils import secure_filename
 
-main_bp = Blueprint('main', __name__)
+from utils import list_files, resolve_within, unique_name
 
-# Directories where downloads and trimmed videos will be stored
-DOWNLOAD_FOLDER = os.path.join(os.getcwd(), 'downloads')
-TRIMMED_FOLDER = os.path.join(os.getcwd(), 'trimmed_videos')
+main_bp = Blueprint("main", __name__)
 
-# Function to trim videos
-def get_unique_output_path(input_dir, input_filename):
-    base_filename, ext = os.path.splitext(input_filename)
-    output_filename = f"{base_filename}_trimmed{ext}"
-    return os.path.join(input_dir, output_filename)
+AUDIO_CODEC = {"mp3": "mp3", "wav": "wav", "ogg": "vorbis"}
+
+_jobs = {}
+_jobs_lock = threading.Lock()
+_MAX_JOBS = 50
+
 
 def trim_video(input_file_path, output_file_path, start_time, duration):
     end_time = start_time + duration
-    ffmpeg_extract_subclip(input_file_path, start_time, end_time, targetname=output_file_path)
+    ffmpeg_extract_subclip(
+        input_file_path, start_time, end_time, targetname=output_file_path
+    )
 
-ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi', 'mkv'}  # Add allowed video extensions
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+def _allowed_upload(filename):
+    if "." not in filename:
+        return False
+    ext = filename.rsplit(".", 1)[1].lower()
+    return ext in current_app.config["ALLOWED_VIDEO_EXTENSIONS"]
 
-@main_bp.route('/upload', methods=['GET', 'POST'])
+
+def _video_format(quality):
+    height = None
+    if quality:
+        match = re.match(r"(\d+)p?$", quality)
+        if match:
+            height = int(match.group(1))
+    if height:
+        return (
+            f"bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/"
+            f"best[height<={height}][ext=mp4]/best[height<={height}]/best"
+        )
+    return "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+
+
+def _audio_quality(quality):
+    if quality and quality.isdigit():
+        return quality
+    if quality == "best":
+        return "0"
+    return "192"
+
+
+def _parse_limit(raw):
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
+def _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit=None):
+    opts = {
+        "outtmpl": os.path.join(download_folder, "%(title)s.%(ext)s"),
+        "noplaylist": not (playlist_wanted or limit),
+        "download_archive": os.path.join(download_folder, ".download_archive.txt"),
+        "socket_timeout": 30,
+        "retries": 3,
+        "ignoreerrors": "only_download",
+    }
+    if limit:
+        opts["playlist_items"] = f"1:{limit}"
+    if ffmpeg_location:
+        opts["ffmpeg_location"] = ffmpeg_location
+
+    if format_choice == "mp4":
+        opts["format"] = _video_format(quality)
+        opts["merge_output_format"] = "mp4"
+    else:
+        opts["format"] = "bestaudio/best"
+        opts["postprocessors"] = [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": AUDIO_CODEC.get(format_choice, "mp3"),
+                "preferredquality": _audio_quality(quality),
+            }
+        ]
+    return opts
+
+
+def _update_job(job_id, **changes):
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if job is not None:
+            job.update(changes)
+
+
+def _create_job(format_choice):
+    job_id = uuid.uuid4().hex
+    with _jobs_lock:
+        finished = [j for j, v in _jobs.items() if v["status"] in ("done", "error")]
+        while len(_jobs) >= _MAX_JOBS and finished:
+            _jobs.pop(finished.pop(0), None)
+        _jobs[job_id] = {
+            "id": job_id,
+            "status": "running",
+            "percent": 0,
+            "total": None,
+            "current_title": "",
+            "message": "Starting…",
+            "format": format_choice,
+            "cancel": False,
+        }
+    return job_id
+
+
+def _make_progress_hook(job_id):
+    def hook(data):
+        with _jobs_lock:
+            job = _jobs.get(job_id)
+            cancelled = job.get("cancel") if job else True
+        if cancelled:
+            raise yt_dlp.utils.DownloadCancelled()
+
+        info = data.get("info_dict") or {}
+        total = info.get("playlist_count") or info.get("n_entries")
+        index = info.get("playlist_index")
+        with _jobs_lock:
+            job = _jobs.get(job_id)
+            if job is None:
+                return
+            if total:
+                job["total"] = total
+            if info.get("title"):
+                job["current_title"] = info["title"]
+            if data.get("status") == "downloading":
+                downloaded = data.get("downloaded_bytes") or 0
+                size = data.get("total_bytes") or data.get("total_bytes_estimate") or 0
+                fraction = (downloaded / size) if size else 0
+                if job["total"] and index:
+                    job["percent"] = round(((index - 1) + fraction) / job["total"] * 100)
+                    job["message"] = (
+                        f"Downloading {index}/{job['total']}: {job['current_title']}"
+                    )
+                else:
+                    job["percent"] = round(fraction * 100)
+                    job["message"] = f"Downloading: {job['current_title']}"
+            elif data.get("status") == "finished":
+                job["message"] = f"Converting: {job['current_title']}"
+
+    return hook
+
+
+def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, quality, playlist_wanted, limit, logger):
+    opts = _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit)
+    opts["progress_hooks"] = [_make_progress_hook(job_id)]
+    opts["quiet"] = True
+    opts["no_warnings"] = True
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl.download([url])
+    except yt_dlp.utils.DownloadCancelled:
+        _update_job(job_id, status="cancelled", message="Download cancelled.")
+        return
+    except Exception:
+        logger.exception("Download failed for %s", url)
+        _update_job(
+            job_id,
+            status="error",
+            message="Download failed. Check that the URL is valid and try again.",
+        )
+        return
+
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if job is not None:
+            job["status"] = "done"
+            job["percent"] = 100
+            count = job.get("total")
+            suffix = f" {count} item(s)." if count else ""
+            job["message"] = f"Download completed in {format_choice.upper()} format.{suffix}"
+
+
+def _start_download():
+    url = (request.form.get("url") or "").strip()
+    if not url:
+        flash("Please enter a video URL.", "danger")
+        return None
+
+    format_choice = request.form.get("format", "mp3")
+    quality = request.form.get("quality")
+    playlist_wanted = bool(request.form.get("playlist"))
+    limit = _parse_limit(request.form.get("limit"))
+    download_folder = current_app.config["DOWNLOAD_FOLDER"]
+    ffmpeg_location = current_app.config.get("FFMPEG_LOCATION")
+    logger = current_app.logger
+
+    job_id = _create_job(format_choice)
+    thread = threading.Thread(
+        target=_run_download,
+        args=(
+            job_id,
+            download_folder,
+            ffmpeg_location,
+            url,
+            format_choice,
+            quality,
+            playlist_wanted,
+            limit,
+            logger,
+        ),
+        daemon=True,
+    )
+    thread.start()
+    return job_id
+
+
+def _handle_trim(download_folder, trimmed_folder):
+    video_file = request.form.get("video_file")
+    start_raw = request.form.get("start_time")
+    duration_raw = request.form.get("duration")
+
+    if not (video_file and start_raw and duration_raw):
+        flash("Please provide a video, start time, and duration.", "danger")
+        return
+    try:
+        start_time = float(start_raw)
+        duration = float(duration_raw)
+    except ValueError:
+        flash("Start time and duration must be numbers.", "danger")
+        return
+    if start_time < 0 or duration <= 0:
+        flash("Start time must be at least 0 and duration greater than 0.", "danger")
+        return
+
+    input_path = resolve_within(download_folder, video_file)
+    if input_path is None or not os.path.isfile(input_path):
+        flash("Selected video was not found.", "danger")
+        return
+
+    base, ext = os.path.splitext(os.path.basename(video_file))
+    output_name = unique_name(trimmed_folder, f"{base}_trimmed{ext}")
+    output_path = os.path.join(trimmed_folder, output_name)
+    try:
+        trim_video(input_path, output_path, start_time, duration)
+    except Exception:
+        current_app.logger.exception("Trim failed for %s", input_path)
+        flash("Trimming failed. Please try again.", "danger")
+        return
+    flash(
+        f'Video trimmed successfully. Find "{output_name}" on the Trimmed Videos page.',
+        "success",
+    )
+
+
+@main_bp.route("/download_status/<job_id>")
+def download_status(job_id):
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if job is None:
+            return jsonify({"error": "unknown job"}), 404
+        return jsonify(dict(job))
+
+
+@main_bp.route("/cancel_download/<job_id>", methods=["POST"])
+def cancel_download(job_id):
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if job is None:
+            return jsonify({"success": False, "error": "unknown job"}), 404
+        if job["status"] == "running":
+            job["cancel"] = True
+            job["message"] = "Cancelling…"
+        return jsonify({"success": True}), 200
+
+
+@main_bp.route("/upload", methods=["GET", "POST"])
 def upload_video():
-    if request.method == 'POST':
-        # Check if the post request has the file part
-        if 'video' not in request.files:
-            flash('No file part')
-            return redirect(request.url)
-        file = request.files['video']
-        # If user does not select file, browser also
-        # submit an empty part without filename
-        if file.filename == '':
-            flash('No selected file')
-            return redirect(request.url)
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            file.save(os.path.join(DOWNLOAD_FOLDER, filename))
-            # Return success with trim option
-            flash(f'Video "{filename}" uploaded successfully! Would you like to trim it now?', 'upload_success')
-            return redirect(url_for('main.index', uploaded_file=filename, show_trim='true'))
-    return render_template('upload.html')
+    if request.method == "GET":
+        return redirect(url_for("main.index"))
 
-# Combined route for both downloading and trimming videos
-@main_bp.route('/', methods=['GET', 'POST'])
+    download_folder = current_app.config["DOWNLOAD_FOLDER"]
+    file = request.files.get("video")
+    if file is None or file.filename == "":
+        flash("No file selected.", "danger")
+        return redirect(url_for("main.index"))
+
+    filename = secure_filename(file.filename)
+    if not filename or not _allowed_upload(filename):
+        flash("Unsupported file type. Allowed: MP4, MOV, AVI, MKV.", "danger")
+        return redirect(url_for("main.index"))
+
+    filename = unique_name(download_folder, filename)
+    file.save(os.path.join(download_folder, filename))
+    flash(
+        f'Video "{filename}" uploaded successfully. Open the Trim tab to edit it.',
+        "success",
+    )
+    return redirect(url_for("main.index", uploaded_file=filename, show_trim="1"))
+
+
+@main_bp.route("/", methods=["GET", "POST"])
 def index():
-    message = None
-    current_year = datetime.now().year
-    videos = os.listdir(DOWNLOAD_FOLDER)  # Get the list of downloaded videos
-    
-    # Check if coming from upload with trim suggestion
-    uploaded_file = request.args.get('uploaded_file')
-    show_trim = request.args.get('show_trim')
+    download_folder = current_app.config["DOWNLOAD_FOLDER"]
+    trimmed_folder = current_app.config["TRIMMED_FOLDER"]
 
-    if request.method == 'POST':
-        action = request.form.get('action')
-
-        # Handle the download action
+    if request.method == "POST":
+        action = request.form.get("action")
         if action == "Download Playlist":
-            playlist_url = request.form.get('url')
-            format_choice = request.form.get('format', 'mp3')  # Default to MP3
+            job_id = _start_download()
+            if job_id:
+                return redirect(url_for("main.index", job=job_id))
+            return redirect(url_for("main.index"))
+        if action == "Trim Video":
+            _handle_trim(download_folder, trimmed_folder)
+        return redirect(url_for("main.index"))
 
-            if playlist_url:
-                try:
-                    # Check if a file with the same name already exists in the download folder
-                    if any(file.startswith(os.path.basename(playlist_url)) for file in os.listdir(DOWNLOAD_FOLDER)):
-                        message = "A video from this playlist has already been downloaded."
-                    else:
-                        if format_choice == 'mp4':  # Video download
-                            ydl_opts = {
-                                'format': 'bestvideo+bestaudio[ext=mp4]/best[ext=mp4]/best',
-                                'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
-                                'merge_output_format': 'mp4',
-                                'ffmpeg_location': r'C:\ffmpeg\bin\ffmpeg.exe'
-                            }
-                        else:  # Audio download
-                            ydl_opts = {
-                                'format': 'bestaudio/best',
-                                'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
-                                'postprocessors': [{
-                                    'key': 'FFmpegExtractAudio',
-                                    'preferredcodec': format_choice,
-                                    'preferredquality': '192',
-                                }],
-                                'postprocessor_args': ['-ar', '16000'],
-                                'ffmpeg_location': r'C:\ffmpeg\bin\ffmpeg.exe'
-                            }
-
-                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                            ydl.download([playlist_url])
-                        message = f"Download completed in {format_choice.upper()} format! Check the 'downloads' folder."
-                except Exception as e:
-                    message = f"An error occurred during download: {e}"
-
-        # Handle the trim video action
-        elif action == "Trim Video":
-            video_file = request.form.get('video_file')
-            start_time = request.form.get('start_time')
-            duration = request.form.get('duration')
-
-            if video_file and start_time and duration:
-                try:
-                    start_time = float(start_time)
-                    duration = float(duration)
-
-                    input_file_path = os.path.join(DOWNLOAD_FOLDER, video_file)
-                    output_file_path = get_unique_output_path(TRIMMED_FOLDER, video_file)  # Use the function to generate a unique output path
-
-                    # Trim the video
-                    trim_video(input_file_path, output_file_path, start_time, duration)
-
-                    # Provide a direct download link for the trimmed video
-                    trimmed_filename = os.path.basename(output_file_path)
-                    message = f"""
-                    Video trimmed successfully! 
-                    <a href='/download_trimmed/{trimmed_filename}' download class='btn btn-primary mt-2'>Download Trimmed Video</a>
-                    """
-                except Exception as e:
-                    message = f"An error occurred during trimming: {e}"
-            else:
-                message = "Please provide valid inputs for video trimming."
-
-    return render_template('index.html', videos=videos, message=message, current_year=current_year, 
-                          uploaded_file=uploaded_file, show_trim=show_trim)
+    videos = list_files(download_folder, current_app.config["ALLOWED_VIDEO_EXTENSIONS"])
+    return render_template(
+        "index.html",
+        videos=videos,
+        current_year=datetime.now().year,
+        uploaded_file=request.args.get("uploaded_file"),
+        show_trim=request.args.get("show_trim"),
+        job=request.args.get("job"),
+    )

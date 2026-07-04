@@ -11,7 +11,7 @@ MediaSculp 2.0 is an enterprise-grade web application for downloading, processin
 ### Core Functionality
 - **Universal Video Downloader:** Download videos from 1000+ platforms using yt-dlp
 - **Multi-Format Support:** Export to MP3, WAV, OGG, MP4, and more
-- **Precision Video Trimming:** Frame-accurate video editing with decimal precision
+- **Fast Video Trimming:** Quick clip extraction by start time and duration (keyframe-aligned stream copy)
 - **Batch Processing:** Download entire playlists with a single click
 - **Quality Selection:** Choose from multiple quality options (Best, 1080p, 720p, 480p, etc.)
 
@@ -146,11 +146,15 @@ MediaSculpModal/
 ## 📋 Requirements
 
 ```txt
-Flask==2.3.3
-yt-dlp==2023.7.6
+Flask==3.0.3
+Flask-WTF==1.3.0
+Werkzeug==3.0.4
+yt-dlp>=2025.6.0        # keep current; stale versions break against YouTube
 moviepy==1.0.3
-Werkzeug==2.3.7
+python-dotenv==1.2.2
 ```
+
+See `requirements.txt` for the full pinned list, and `requirements-dev.txt` to include `pytest`.
 
 ## 🔧 Configuration
 
@@ -173,9 +177,10 @@ Edit `routes/main.py` to customize:
 - `POST /` - Process download or trim request
 - `GET /downloads` - View downloaded files
 - `GET /trimmed_videos` - View trimmed videos
-- `POST /delete_file/<filename>` - Delete downloaded file
-- `POST /delete_trimmed_video/<filename>` - Delete trimmed video
-- `GET /download/<filename>` - Download file
+- `POST /upload` - Upload a local video file (multipart form)
+- `POST /delete_file/<filename>` - Delete downloaded file (CSRF-protected)
+- `POST /delete_trimmed_video/<filename>` - Delete trimmed video (CSRF-protected)
+- `GET /download_file/<filename>` - Download a downloaded file
 - `GET /download_trimmed/<filename>` - Download trimmed video
 
 ## 🤝 Contributing
