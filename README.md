@@ -88,6 +88,17 @@ python serve.py        # HOST/PORT via env; defaults to 127.0.0.1:5000
 
 Run a **single instance only** — the download-job registry and concurrency limit are in-memory, so multiple workers or replicas would not share them.
 
+## Run as a desktop app
+
+To run it in a native window instead of a browser tab (waitress runs in the background and the UI opens in a desktop window):
+
+```bash
+pip install -r requirements-desktop.txt
+python desktop.py
+```
+
+This adds [pywebview](https://pywebview.flowrl.com/), which uses the platform's built-in web view (WebView2 on Windows, WebKitGTK on Linux, WebKit on macOS). Set `HOST`/`PORT` to change the bind address.
+
 ## Usage
 
 ### Download
@@ -114,6 +125,7 @@ The **Downloads** and **Trimmed** pages let you preview, download, and delete fi
 MediaSculp2.0/
 ├── app.py                    # App factory (create_app), CSRF, error handlers, dev entry
 ├── serve.py                  # Production entrypoint (waitress)
+├── desktop.py                # Desktop-app entrypoint (waitress + pywebview)
 ├── config.py                 # Env-driven configuration (Config / TestConfig)
 ├── utils.py                  # safe path resolution, unique naming, file listing
 ├── db.py                     # SQLite download history (stdlib sqlite3)
@@ -135,6 +147,7 @@ MediaSculp2.0/
 ├── tests/                    # pytest suite (Flask test client)
 ├── requirements.txt          # Runtime dependencies
 ├── requirements-dev.txt      # Runtime + pytest
+├── requirements-desktop.txt  # Runtime + pywebview (desktop app)
 ├── Dockerfile                # Container image (waitress + ffmpeg)
 ├── docker-compose.yml        # One-command Docker run
 ├── .env.example              # Configuration template

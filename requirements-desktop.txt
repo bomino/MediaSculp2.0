@@ -1,0 +1,5 @@
+# Desktop-app extra: run MediaSculp in a native window with `python desktop.py`.
+# Installs the runtime requirements plus pywebview (which pulls the platform's
+# webview backend — WebView2 on Windows, WebKitGTK on Linux, WebKit on macOS).
+-r requirements.txt
+pywebview>=5.0
