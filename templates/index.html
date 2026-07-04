@@ -45,10 +45,15 @@
                 <form action="/" method="POST" id="download-form">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="form-group">
-                        <label for="url" class="form-label">Video URL(s)</label>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label for="url" class="form-label mb-0">Video URL(s)</label>
+                            <button type="button" id="pasteUrlBtn" class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-clipboard"></i> Paste
+                            </button>
+                        </div>
                         <textarea class="form-control" id="url" name="url" rows="2"
                                   placeholder="https://youtube.com/watch?v=…   (one link per line to queue several)" required></textarea>
-                        <div class="help-text">Paste one or more links — one per line to download several at once.</div>
+                        <div class="help-text">Paste one or more links — one per line, or drop a link here, to download several at once.</div>
                     </div>
                     
                     <div class="row">
@@ -452,6 +457,44 @@ document.addEventListener('DOMContentLoaded', function() {
                 try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch (e) {}
             });
         }
+    })();
+
+    // Paste-from-clipboard button and drag-a-link support for the URL box.
+    (function () {
+        const urlBox = document.getElementById('url');
+        const pasteBtn = document.getElementById('pasteUrlBtn');
+        if (!urlBox) { return; }
+
+        function appendUrl(text) {
+            const value = (text || '').trim();
+            if (!value) { return; }
+            urlBox.value = urlBox.value.trim() ? urlBox.value.replace(/\s*$/, '') + '\n' + value : value;
+            urlBox.focus();
+        }
+
+        if (pasteBtn && navigator.clipboard && navigator.clipboard.readText) {
+            pasteBtn.addEventListener('click', function () {
+                navigator.clipboard.readText()
+                    .then(appendUrl)
+                    .catch(function () { urlBox.focus(); });
+            });
+        } else if (pasteBtn) {
+            pasteBtn.style.display = 'none';
+        }
+
+        urlBox.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            urlBox.classList.add('drag-over');
+        });
+        urlBox.addEventListener('dragleave', function () {
+            urlBox.classList.remove('drag-over');
+        });
+        urlBox.addEventListener('drop', function (e) {
+            e.preventDefault();
+            urlBox.classList.remove('drag-over');
+            const text = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+            appendUrl(text);
+        });
     })();
 });
 </script>

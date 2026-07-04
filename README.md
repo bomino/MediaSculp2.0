@@ -14,7 +14,7 @@ It ships with a compact interface that has both light and dark themes.
 - **Background downloads** — downloads run in the background and appear in an **Active downloads** panel (on every page) with per-job progress and a **Cancel** button, so a long playlist never freezes the page. Multiple downloads run in parallel up to a configurable limit; the rest queue. Downloaded video IDs are recorded (yt-dlp `download_archive`) so re-runs resume rather than re-download.
 - **Trim clips** — pick a downloaded video and cut a clip by start time and duration.
 - **Upload** local video files to trim them.
-- **Manage files** — preview, download, and delete files; instant search (Ctrl+K) and at-a-glance counts.
+- **Manage files** — preview, download, and delete files; instant search (Ctrl+K), sort by name/size/date, filter by type, and real file sizes with at-a-glance counts.
 - **Download history** — every download is recorded to a small SQLite database, so a **History** page lets you search, re-download, and review past downloads even across restarts.
 - **Light + dark theme** — follows your OS setting, with a toggle in the top bar.
 
@@ -92,7 +92,7 @@ Run a **single instance only** — the download-job registry and concurrency lim
 
 ### Download
 1. Open the **Download** tab.
-2. Paste one or more links (one per line to queue several) and pick a format (MP3/WAV/OGG or MP4) and quality.
+2. Paste one or more links (one per line to queue several) — use the **Paste** button or drop a link onto the box — and pick a format (MP3/WAV/OGG or MP4) and quality.
 3. Optionally tick **Extras** — subtitles, embed thumbnail/cover art, save metadata tags, embed chapter markers, skip sponsor segments. Your choices are remembered next time.
 4. For a playlist URL, optionally set a **Playlist limit** to grab only the first N items.
 4. Click **Start Download**. A progress bar shows real progress (e.g. "Downloading 3/19"); use **Cancel** to stop. Finished files appear on the **Downloads** page.
@@ -106,7 +106,7 @@ Run a **single instance only** — the download-job registry and concurrency lim
 Open the **Upload** tab to upload a local video (MP4/MOV/AVI/MKV, up to 500 MB), then switch to **Trim**.
 
 ### Manage
-The **Downloads** and **Trimmed** pages let you preview, download, and delete files, with instant search (Ctrl+K).
+The **Downloads** and **Trimmed** pages let you preview, download, and delete files, with instant search (Ctrl+K), sorting (name/size/date), and a type filter.
 
 ## Project structure
 

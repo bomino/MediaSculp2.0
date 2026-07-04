@@ -390,6 +390,12 @@ textarea.form-control { height: auto; }
 
 .form-control::placeholder { color: var(--text-faint); }
 
+textarea.form-control.drag-over {
+    border-color: var(--accent);
+    box-shadow: var(--ring);
+    background: var(--accent-soft, rgba(16, 185, 129, 0.08));
+}
+
 select.form-control {
     cursor: pointer;
     padding-right: 2rem;
