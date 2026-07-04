@@ -256,6 +256,24 @@ def test_download_status_endpoint(client, monkeypatch):
     assert client.get("/download_status/does-not-exist").status_code == 404
 
 
+def test_downloads_status_lists_jobs(client, monkeypatch):
+    import routes.main as main
+
+    monkeypatch.setattr(main, "_run_download", lambda *a, **k: None)
+    post = client.post(
+        "/", data={"action": "Download Playlist", "url": "https://example.com/v"}
+    )
+    job_id = post.headers["Location"].split("job=")[1].split("&")[0]
+
+    data = client.get("/downloads_status").get_json()
+    assert "jobs" in data
+    ids = [j["id"] for j in data["jobs"]]
+    assert job_id in ids
+    job = [j for j in data["jobs"] if j["id"] == job_id][0]
+    assert "seq" in job
+    assert job["status"] in ("queued", "running")
+
+
 def test_trim_missing_fields_flashes(client):
     response = client.post(
         "/", data={"action": "Trim Video"}, follow_redirects=True

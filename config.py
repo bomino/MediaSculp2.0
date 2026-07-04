@@ -48,6 +48,9 @@ class Config:
 
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_UPLOAD_BYTES", 500 * 1024 * 1024))
 
+    # How many downloads may run at once; the rest are queued.
+    MAX_CONCURRENT_DOWNLOADS = int(os.environ.get("MAX_CONCURRENT_DOWNLOADS", 3))
+
     ALLOWED_VIDEO_EXTENSIONS = {"mp4", "mov", "avi", "mkv"}
     ALLOWED_AUDIO_FORMATS = {"mp3", "wav", "ogg"}
 

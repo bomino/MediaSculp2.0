@@ -858,6 +858,46 @@ select.form-control {
 
 .bulk-bar .bulk-actions { display: flex; gap: 0.5rem; }
 
+/* Active downloads panel */
+.downloads-panel {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 0.9rem 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.downloads-panel__title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 650;
+    color: var(--text-muted);
+    margin-bottom: 0.6rem;
+}
+
+.download-job { padding: 0.55rem 0; }
+.download-job + .download-job { border-top: 1px solid var(--border); }
+
+.download-job__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.4rem;
+}
+
+.download-job__msg {
+    font-size: 0.85rem;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.download-job .progress { margin: 0; }
+
 /* Media previews */
 video, audio { border-radius: var(--r-sm); max-width: 100%; }
 video.rounded, video.shadow-sm { border: 1px solid var(--border); }

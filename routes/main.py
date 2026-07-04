@@ -27,6 +27,17 @@ AUDIO_CODEC = {"mp3": "mp3", "wav": "wav", "ogg": "vorbis"}
 _jobs = {}
 _jobs_lock = threading.Lock()
 _MAX_JOBS = 50
+_job_seq = 0
+_semaphore = None
+_semaphore_lock = threading.Lock()
+
+
+def _get_semaphore(limit):
+    global _semaphore
+    with _semaphore_lock:
+        if _semaphore is None:
+            _semaphore = threading.BoundedSemaphore(max(1, limit))
+    return _semaphore
 
 
 def trim_video(input_file_path, output_file_path, start_time, duration):
@@ -112,18 +123,21 @@ def _update_job(job_id, **changes):
 
 
 def _create_job(format_choice):
+    global _job_seq
     job_id = uuid.uuid4().hex
     with _jobs_lock:
-        finished = [j for j, v in _jobs.items() if v["status"] in ("done", "error")]
+        finished = [j for j, v in _jobs.items() if v["status"] in ("done", "error", "cancelled")]
         while len(_jobs) >= _MAX_JOBS and finished:
             _jobs.pop(finished.pop(0), None)
+        _job_seq += 1
         _jobs[job_id] = {
             "id": job_id,
-            "status": "running",
+            "seq": _job_seq,
+            "status": "queued",
             "percent": 0,
             "total": None,
             "current_title": "",
-            "message": "Starting…",
+            "message": "Queued…",
             "format": format_choice,
             "cancel": False,
         }
@@ -167,34 +181,47 @@ def _make_progress_hook(job_id):
     return hook
 
 
-def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, quality, playlist_wanted, limit, logger):
-    opts = _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit)
-    opts["progress_hooks"] = [_make_progress_hook(job_id)]
-    opts["quiet"] = True
-    opts["no_warnings"] = True
+def _run_download(job_id, download_folder, ffmpeg_location, url, format_choice, quality, playlist_wanted, limit, max_concurrent, logger):
+    semaphore = _get_semaphore(max_concurrent)
+    semaphore.acquire()
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.download([url])
-    except yt_dlp.utils.DownloadCancelled:
-        _update_job(job_id, status="cancelled", message="Download cancelled.")
-        return
-    except Exception:
-        logger.exception("Download failed for %s", url)
-        _update_job(
-            job_id,
-            status="error",
-            message="Download failed. Check that the URL is valid and try again.",
-        )
-        return
+        with _jobs_lock:
+            job = _jobs.get(job_id)
+            cancelled = job.get("cancel") if job else True
+        if cancelled:
+            _update_job(job_id, status="cancelled", message="Download cancelled.")
+            return
+        _update_job(job_id, status="running", message="Starting…")
 
-    with _jobs_lock:
-        job = _jobs.get(job_id)
-        if job is not None:
-            job["status"] = "done"
-            job["percent"] = 100
-            count = job.get("total")
-            suffix = f" {count} item(s)." if count else ""
-            job["message"] = f"Download completed in {format_choice.upper()} format.{suffix}"
+        opts = _build_ydl_opts(download_folder, ffmpeg_location, format_choice, quality, playlist_wanted, limit)
+        opts["progress_hooks"] = [_make_progress_hook(job_id)]
+        opts["quiet"] = True
+        opts["no_warnings"] = True
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                ydl.download([url])
+        except yt_dlp.utils.DownloadCancelled:
+            _update_job(job_id, status="cancelled", message="Download cancelled.")
+            return
+        except Exception:
+            logger.exception("Download failed for %s", url)
+            _update_job(
+                job_id,
+                status="error",
+                message="Download failed. Check that the URL is valid and try again.",
+            )
+            return
+
+        with _jobs_lock:
+            job = _jobs.get(job_id)
+            if job is not None:
+                job["status"] = "done"
+                job["percent"] = 100
+                count = job.get("total")
+                suffix = f" {count} item(s)." if count else ""
+                job["message"] = f"Download completed in {format_choice.upper()} format.{suffix}"
+    finally:
+        semaphore.release()
 
 
 def _start_download():
@@ -209,6 +236,7 @@ def _start_download():
     limit = _parse_limit(request.form.get("limit"))
     download_folder = current_app.config["DOWNLOAD_FOLDER"]
     ffmpeg_location = current_app.config.get("FFMPEG_LOCATION")
+    max_concurrent = current_app.config["MAX_CONCURRENT_DOWNLOADS"]
     logger = current_app.logger
 
     job_id = _create_job(format_choice)
@@ -223,6 +251,7 @@ def _start_download():
             quality,
             playlist_wanted,
             limit,
+            max_concurrent,
             logger,
         ),
         daemon=True,
@@ -278,13 +307,21 @@ def download_status(job_id):
         return jsonify(dict(job))
 
 
+@main_bp.route("/downloads_status")
+def downloads_status():
+    with _jobs_lock:
+        jobs = [dict(job) for job in _jobs.values()]
+    jobs.sort(key=lambda j: j.get("seq", 0))
+    return jsonify({"jobs": jobs})
+
+
 @main_bp.route("/cancel_download/<job_id>", methods=["POST"])
 def cancel_download(job_id):
     with _jobs_lock:
         job = _jobs.get(job_id)
         if job is None:
             return jsonify({"success": False, "error": "unknown job"}), 404
-        if job["status"] == "running":
+        if job["status"] in ("running", "queued"):
             job["cancel"] = True
             job["message"] = "Cancelling…"
         return jsonify({"success": True}), 200
